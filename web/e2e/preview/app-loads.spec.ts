@@ -5,7 +5,7 @@ test.describe("preview shell", () => {
     await page.goto("/");
     await expect(page.getByTestId("app-root")).toBeVisible();
     await expect(page.getByRole("heading", { name: /furnigen/i })).toBeVisible();
-    await expect(page.getByTestId("wasm-status")).toContainText("sample depth 600 mm validated", {
+    await expect(page.getByTestId("wasm-status")).toContainText("WardrobeSpec v1 + preview mesh", {
       timeout: 30_000,
     });
     await expect(
