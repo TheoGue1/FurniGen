@@ -117,7 +117,10 @@ mod tests {
     #[test]
     fn golden_with_extensions_round_trips() {
         let spec = parse_wardrobe_spec_json(WITH_EXT.trim()).unwrap();
-        assert_eq!(spec.extensions.get("reserved"), Some(&serde_json::json!(true)));
+        assert_eq!(
+            spec.extensions.get("reserved"),
+            Some(&serde_json::json!(true))
+        );
         let again = parse_wardrobe_spec_json(&serde_json::to_string(&spec).unwrap()).unwrap();
         assert_eq!(spec, again);
     }

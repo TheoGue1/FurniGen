@@ -2,9 +2,17 @@
 //!
 //! WASM and the web UI depend on this crate; keep it free of browser or Three.js APIs.
 
+mod bom;
+mod export_2d;
+mod export_mesh;
+mod panels;
 mod preview_mesh;
 mod spec;
 
+pub use bom::{bom_to_csv, build_bom, BomDocument, BomPartRow};
+pub use export_2d::{build_panels_dxf, build_panels_svg};
+pub use export_mesh::{preview_mesh_to_gltf, preview_mesh_to_obj, MeshExportError};
+pub use panels::{panel_blanks_for_spec, PanelBlank};
 pub use preview_mesh::{build_preview_mesh, PreviewMesh};
 pub use spec::{
     parse_wardrobe_spec_json, validate_wardrobe_spec, LayoutSpec, SpecError, WardrobeSpec,

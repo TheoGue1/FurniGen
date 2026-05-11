@@ -32,14 +32,7 @@ fn push_quad(positions: &mut Vec<f32>, indices: &mut Vec<u32>, corners: [(f32, f
     for (x, y, z) in corners {
         push_vertex(positions, x, y, z);
     }
-    indices.extend_from_slice(&[
-        base,
-        base + 1,
-        base + 2,
-        base,
-        base + 2,
-        base + 3,
-    ]);
+    indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
 }
 
 /// Origin: bottom-left-back interior corner. +X width, +Y up, +Z toward room (front open at z = depth).
@@ -78,10 +71,7 @@ fn build_open_front_box_mm(w: f32, h: f32, d: f32) -> PreviewMesh {
         [(0.0, h, 0.0), (0.0, h, d), (w, h, d), (w, h, 0.0)],
     );
 
-    PreviewMesh {
-        positions,
-        indices,
-    }
+    PreviewMesh { positions, indices }
 }
 
 #[cfg(test)]

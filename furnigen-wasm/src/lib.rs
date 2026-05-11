@@ -44,6 +44,52 @@ pub fn build_wardrobe_preview_mesh_json(json: &str) -> Result<String, JsValue> {
     serde_json::to_string(&mesh).map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
+/// Cut list / BOM as JSON (`unit`, `parts[]` with nominal `width_mm` × `height_mm` per panel).
+#[wasm_bindgen(js_name = buildWardrobeBomJson)]
+pub fn build_wardrobe_bom_json(json: &str) -> Result<String, JsValue> {
+    let spec = furnigen_core::parse_wardrobe_spec_json(json).map_err(js_spec_err)?;
+    let bom = furnigen_core::build_bom(&spec);
+    serde_json::to_string(&bom).map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+/// Same BOM as [`buildWardrobeBomJson`](crate::build_wardrobe_bom_json), CSV with header row.
+#[wasm_bindgen(js_name = buildWardrobeBomCsv)]
+pub fn build_wardrobe_bom_csv(json: &str) -> Result<String, JsValue> {
+    let spec = furnigen_core::parse_wardrobe_spec_json(json).map_err(js_spec_err)?;
+    Ok(furnigen_core::bom_to_csv(&furnigen_core::build_bom(&spec)))
+}
+
+/// 2D panel outlines as a single SVG document (mm geometry).
+#[wasm_bindgen(js_name = buildWardrobePanelsSvg)]
+pub fn build_wardrobe_panels_svg(json: &str) -> Result<String, JsValue> {
+    let spec = furnigen_core::parse_wardrobe_spec_json(json).map_err(js_spec_err)?;
+    Ok(furnigen_core::build_panels_svg(&spec))
+}
+
+/// 2D panel rectangles as minimal ASCII DXF (mm in drawing XY).
+#[wasm_bindgen(js_name = buildWardrobePanelsDxf)]
+pub fn build_wardrobe_panels_dxf(json: &str) -> Result<String, JsValue> {
+    let spec = furnigen_core::parse_wardrobe_spec_json(json).map_err(js_spec_err)?;
+    Ok(furnigen_core::build_panels_dxf(&spec))
+}
+
+/// Preview mesh as Wavefront OBJ (mm, triangular faces).
+#[wasm_bindgen(js_name = buildWardrobePreviewObj)]
+pub fn build_wardrobe_preview_obj(json: &str) -> Result<String, JsValue> {
+    let spec = furnigen_core::parse_wardrobe_spec_json(json).map_err(js_spec_err)?;
+    let mesh = furnigen_core::build_preview_mesh(&spec);
+    furnigen_core::preview_mesh_to_obj(&mesh, "wardrobe")
+        .map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+/// Preview mesh as glTF 2.0 JSON with an embedded `data:` buffer (mm).
+#[wasm_bindgen(js_name = buildWardrobePreviewGltf)]
+pub fn build_wardrobe_preview_gltf(json: &str) -> Result<String, JsValue> {
+    let spec = furnigen_core::parse_wardrobe_spec_json(json).map_err(js_spec_err)?;
+    let mesh = furnigen_core::build_preview_mesh(&spec);
+    furnigen_core::preview_mesh_to_gltf(&mesh).map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
 fn js_spec_err(e: furnigen_core::SpecError) -> JsValue {
     JsValue::from_str(&e.to_string())
 }
@@ -77,5 +123,20 @@ mod tests {
         let json = build_wardrobe_preview_mesh_json(FIXTURE.trim()).unwrap();
         assert!(json.contains("\"positions\""));
         assert!(json.contains("\"indices\""));
+    }
+
+    #[test]
+    fn export_entrypoints_smoke() {
+        const FIXTURE: &str = include_str!("../../spec-fixtures/wardrobe-spec-v1-minimal.json");
+        let j = FIXTURE.trim();
+        assert!(build_wardrobe_bom_json(j).unwrap().contains("\"parts\""));
+        assert!(build_wardrobe_bom_csv(j).unwrap().contains("left_side"));
+        assert!(build_wardrobe_panels_svg(j).unwrap().contains("<svg"));
+        assert!(build_wardrobe_panels_dxf(j).unwrap().contains("EOF"));
+        assert!(build_wardrobe_preview_obj(j)
+            .unwrap()
+            .starts_with("# FurniGen"));
+        let gltf = build_wardrobe_preview_gltf(j).unwrap();
+        assert!(gltf.contains("\"asset\"") && gltf.contains("base64,"));
     }
 }

@@ -8,3 +8,4 @@ Short architecture decision records (ADRs) for FurniGen. Convention and agent wo
 | [0002](0002-ci-tdd-baseline.md) | CI and TDD baseline (Rust + web) | accepted |
 | [0003](0003-wasm-pack-vite-web-target.md) | wasm-pack web target with Vite | accepted |
 | [0004](0004-wardrobe-spec-json-v1.md) | WardrobeSpec JSON contract v1 | accepted |
+| [0005](0005-export-roadmap-phase-order.md) | Export roadmap phase order (BOM → 2D → mesh) | accepted |
