@@ -23,7 +23,7 @@ After interactive preview: cut list/BOM, 2D panel outlines (e.g. SVG/DXF), 3D me
 
 ## Licensing
 
-- Project targets **GNU GPLv3** (exact variant recorded when `LICENSE` lands). Prefer dependencies compatible with the GPLv3 distribution you intend. Flag license conflicts when adding crates or npm packages.
+- Project license: **GNU GPL-3.0-or-later** (full text in repo root `LICENSE`; summary boilerplate in `COPYRIGHT`). Prefer dependencies compatible with the GPLv3 distribution you intend. Flag license conflicts when adding crates or npm packages. See `README.md` for dependency compliance expectations and planned CI checks (`cargo-deny`, JS license scan).
 
 ## Rule provenance
 
