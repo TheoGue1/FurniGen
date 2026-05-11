@@ -1,0 +1,34 @@
+---
+description: Record non-trivial technical choices as numbered ADRs in docs/decisions
+alwaysApply: true
+---
+
+# Technical decision log (ADRs)
+
+When you make or materially change a **non-trivial** technical choice (framework, crate, schema field, export format, coordinate system, build wiring), **add or update** an entry in [`docs/decisions/`](../../docs/decisions/).
+
+## File naming
+
+- Pattern: `NNNN-short-kebab-title.md` under `docs/decisions/`.
+- `NNNN`: four digits, **monotonic** (next unused number; do not renumber existing files).
+- Prefer one decision per file; amend via a new ADR if the decision is superseded.
+
+## Template (copy into new file)
+
+```markdown
+# <Short title>
+
+- **Status**: proposed | accepted | superseded | deprecated
+- **Date**: YYYY-MM-DD
+- **Context**: What problem or constraint triggered this?
+- **Decision**: What we chose, concretely.
+- **Alternatives considered**: What else was evaluated and why not.
+- **Consequences**: Trade-offs, follow-up work, migrations.
+- **Links**: PRs, issues, related ADRs (optional).
+```
+
+Keep entries **short** (rough target: one screen). Use [Michael Nygard–style ADR](https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions) framing: context → decision → consequences.
+
+## Index
+
+Maintain the table in [`docs/decisions/README.md`](../../docs/decisions/README.md) when adding a decision (title + file link + status).

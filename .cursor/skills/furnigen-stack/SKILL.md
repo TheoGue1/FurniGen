@@ -23,10 +23,11 @@ description: >-
 
 ## When changing contracts
 
-- After `docs/decisions/` exists, add a short ADR for schema or export format changes (see project checklist).
+- Add a short ADR under [`docs/decisions/`](../../../docs/decisions/) for schema or export format changes; follow [`.cursor/rules/technical-decision-log.mdc`](../../../.cursor/rules/technical-decision-log.mdc) and update [`docs/decisions/README.md`](../../../docs/decisions/README.md).
 - Keep **Zod** (TS) and **`serde`** (Rust) in lockstep; add golden JSON fixtures when touching the spec.
 
 ## References
 
-- Project rules: `.cursor/rules/` (`furnigen-project-context`, `typescript-react-vite`, `rust-workspace`, etc.).
+- Project rules: `.cursor/rules/` (`furnigen-project-context`, `technical-decision-log`, `typescript-react-vite`, `rust-workspace`, etc.).
+- Decision log: [`docs/decisions/`](../../../docs/decisions/).
 - External inspiration list: [awesome-cursorrules](https://github.com/PatrickJS/awesome-cursorrules) (not domain-specific).

@@ -19,7 +19,7 @@ alwaysApply: true
 
 ## Exports (roadmap)
 
-After interactive preview: cut list/BOM, 2D panel outlines (e.g. SVG/DXF), 3D mesh export (e.g. glTF). Order is flexible; document dependencies in `docs/decisions/` when that directory exists.
+After interactive preview: cut list/BOM, 2D panel outlines (e.g. SVG/DXF), 3D mesh export (e.g. glTF). Order is flexible; document dependencies and export sequencing in [`docs/decisions/`](../../docs/decisions/) per [technical-decision-log](technical-decision-log.mdc).
 
 ## Licensing
 
