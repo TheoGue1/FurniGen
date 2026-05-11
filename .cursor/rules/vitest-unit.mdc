@@ -1,10 +1,16 @@
 ---
 description: Vitest unit and integration tests for TS and WASM bindings
-globs: "**/*.{test,spec}.{ts,tsx},**/vitest.config.*,**/setupTests.ts"
+globs: web/src/**/*.{test,spec}.{ts,tsx},web/vite.config.ts,web/src/setupTests.ts
 alwaysApply: false
 ---
 
 # Vitest
+
+## Repo wiring
+
+- **Config**: Vitest is configured inside **`web/vite.config.ts`** (`defineConfig` from `vitest/config`); there is no separate `vitest.config.*` at the repo root.
+- **`web/src/setupTests.ts`**: shared test setup (e.g. Testing Library matchers).
+- **`include`**: tests live under `web/src/**/*.{test,spec}.{ts,tsx}` (see `test` block in `web/vite.config.ts`).
 
 ## Focus
 

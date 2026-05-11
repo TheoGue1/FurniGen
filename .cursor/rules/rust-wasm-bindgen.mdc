@@ -19,6 +19,7 @@ alwaysApply: false
 ## Size and build
 
 - Use **`wasm-pack`** with `release` + `opt-level = "z"` / `lto` where appropriate; track `.wasm` size over time.
+- **Web bundle path**: `npm` scripts in `web/package.json` build into **`web/src/wasm/furnigen-wasm/`** (`--out-dir` from `furnigen-wasm`); keep JS import paths aligned with that output.
 - Avoid pulling heavy transitive deps into the WASM crate; keep **feature flags** for optional exporters (glTF, etc.).
 
 ## Determinism

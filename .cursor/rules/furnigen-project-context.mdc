@@ -11,6 +11,11 @@ alwaysApply: true
 - **`furnigen-wasm`**: Thin `wasm-bindgen` boundary; JSON (or bytes) in, mesh/metadata out. Shares types with core via workspace.
 - **`web/`**: React + TypeScript + Vite + Tailwind; Three.js reads WASM output only.
 
+## Repo layout (paths)
+
+- **Workspace root**: `Cargo.toml` lists **`furnigen-core`**, **`furnigen-wasm`**.
+- **SPA**: **`web/`** — `web/vite.config.ts`, `web/playwright.config.ts`, Vitest files under **`web/src/**/*.{test,spec}.{ts,tsx}`**, E2E under **`web/e2e/`**.
+
 ## Units and layout
 
 - **Canonical units**: millimeters in the spec, Rust core, and JSON on the wire.

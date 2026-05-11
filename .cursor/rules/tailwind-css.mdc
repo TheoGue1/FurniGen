@@ -1,10 +1,12 @@
 ---
 description: Tailwind layout and tokens for web/
-globs: web/**/*.css,web/**/tailwind.config.*
+globs: web/**/*.css,web/tailwind.config.*,web/postcss.config.*
 alwaysApply: false
 ---
 
 # Tailwind (`web/`)
+
+Tailwind is wired from **`web/tailwind.config.js`** and **`web/postcss.config.js`** (Vite app root **`web/`**).
 
 ## Conventions
 

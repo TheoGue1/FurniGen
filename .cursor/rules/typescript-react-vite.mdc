@@ -1,6 +1,6 @@
 ---
 description: TypeScript, React, Vite SPA patterns for web/
-globs: web/**/*.{ts,tsx},**/vite.config.ts
+globs: web/**/*.{ts,tsx},web/vite.config.ts,web/index.html,web/tsconfig.json
 alwaysApply: false
 ---
 
@@ -21,13 +21,14 @@ alwaysApply: false
 
 ## Vite
 
+- **App root**: `web/` (entry `web/index.html`, config `web/vite.config.ts`).
 - Use `import.meta.env` for env; keep **VITE\_** prefix for client-exposed vars.
 - Split heavy routes with `React.lazy` + `Suspense` when they measurably help bundle size.
 
 ## Data and spec
 
 - **`zod`** (or equivalent) mirrors the wardrobe JSON contract; parse at boundaries (WASM responses, forms, URL state).
-- Keep **Zod schemas colocated** with the TS types they validate (e.g. `spec/` or `lib/spec/`).
+- Keep **Zod schemas colocated** with the TS types they validate (today: `web/src/lib/spec/` alongside the wardrobe contract types).
 
 ## Three.js
 

@@ -1,6 +1,6 @@
 ---
 description: Rust workspace style for furnigen-core and furnigen-wasm
-globs: "**/*.rs,**/Cargo.toml"
+globs: furnigen-core/**/*.rs,furnigen-wasm/**/*.rs,Cargo.toml,furnigen-core/Cargo.toml,furnigen-wasm/Cargo.toml
 alwaysApply: false
 ---
 

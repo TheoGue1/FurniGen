@@ -1,10 +1,15 @@
 ---
 description: Playwright browser tests for FurniGen SPA
-globs: "**/e2e/**/*,**/*.e2e.ts,**/playwright.config.*"
+globs: web/e2e/**/*,web/playwright.config.ts,web/**/*.e2e.ts
 alwaysApply: false
 ---
 
 # Playwright
+
+## Repo wiring
+
+- **Config**: `web/playwright.config.ts` (`testDir: "./e2e"` → **`web/e2e/`** from the package root).
+- **Dev server in tests**: `webServer` runs **`npm run preview`** on **`127.0.0.1:4173`**; `use.baseURL` matches that origin.
 
 ## Scope
 
@@ -15,11 +20,11 @@ alwaysApply: false
 
 - Prefer **`data-testid`** on stable controls over text selectors tied to copy.
 - Use **network idle / explicit waits** on WASM init, not arbitrary `sleep` except as last resort.
-- Run against **`vite preview` or dev server** URL from config; keep baseURL in one place.
+- Run against **`vite preview`** (see `web/playwright.config.ts`) or dev server URL from config; keep **baseURL** in that file only.
 
 ## Structure
 
-- One **feature folder** under `e2e/` per major flow (`e2e/preview/`, `e2e/export/`).
+- One **feature folder** under **`web/e2e/`** per major flow (e.g. `web/e2e/preview/`, `web/e2e/export/` when added).
 - Share login or seed steps via **fixtures** when persistence exists; keep tests parallel-safe.
 
 ## Reporting
