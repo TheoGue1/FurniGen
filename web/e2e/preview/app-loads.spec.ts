@@ -8,5 +8,8 @@ test.describe("preview shell", () => {
     await expect(page.getByTestId("wasm-status")).toContainText("sample depth 600 mm validated", {
       timeout: 30_000,
     });
+    await expect(
+      page.getByTestId("preview-canvas").or(page.getByTestId("preview-gl-fallback"))
+    ).toBeVisible({ timeout: 30_000 });
   });
 });

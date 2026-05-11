@@ -2,8 +2,10 @@
 //!
 //! WASM and the web UI depend on this crate; keep it free of browser or Three.js APIs.
 
+mod preview_mesh;
 mod spec;
 
+pub use preview_mesh::{build_preview_mesh, PreviewMesh};
 pub use spec::{
     parse_wardrobe_spec_json, validate_wardrobe_spec, LayoutSpec, SpecError, WardrobeSpec,
     WARDROBE_SPEC_VERSION,

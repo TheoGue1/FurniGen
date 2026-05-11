@@ -36,6 +36,14 @@ pub fn normalize_wardrobe_spec_json(json: &str) -> Result<String, JsValue> {
     serde_json::to_string(&spec).map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
+/// Builds a preview triangle mesh (mm units) from a validated WardrobeSpec JSON document.
+#[wasm_bindgen(js_name = buildWardrobePreviewMeshJson)]
+pub fn build_wardrobe_preview_mesh_json(json: &str) -> Result<String, JsValue> {
+    let spec = furnigen_core::parse_wardrobe_spec_json(json).map_err(js_spec_err)?;
+    let mesh = furnigen_core::build_preview_mesh(&spec);
+    serde_json::to_string(&mesh).map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
 fn js_spec_err(e: furnigen_core::SpecError) -> JsValue {
     JsValue::from_str(&e.to_string())
 }
@@ -61,5 +69,13 @@ mod tests {
         let out = normalize_wardrobe_spec_json(FIXTURE.trim()).unwrap();
         assert!(out.contains("\"version\":1"));
         assert!(out.contains("straight_run"));
+    }
+
+    #[test]
+    fn preview_mesh_json_shape() {
+        const FIXTURE: &str = include_str!("../../spec-fixtures/wardrobe-spec-v1-minimal.json");
+        let json = build_wardrobe_preview_mesh_json(FIXTURE.trim()).unwrap();
+        assert!(json.contains("\"positions\""));
+        assert!(json.contains("\"indices\""));
     }
 }
