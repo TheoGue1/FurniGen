@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "layout": {
+    "type": "straight_run",
+    "width_mm": 1800,
+    "height_mm": 2100,
+    "depth_mm": 550
+  },
+  "extensions": {
+    "reserved": true
+  }
+}

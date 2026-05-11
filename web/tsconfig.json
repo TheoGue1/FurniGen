@@ -15,7 +15,8 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedIndexedAccess": true
+    "noUncheckedIndexedAccess": true,
+    "resolveJsonModule": true
   },
-  "include": ["src", "vite.config.ts", "playwright.config.ts"]
+  "include": ["src", "../spec-fixtures/**/*.json", "vite.config.ts", "playwright.config.ts"]
 }

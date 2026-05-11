@@ -2,6 +2,13 @@
 //!
 //! WASM and the web UI depend on this crate; keep it free of browser or Three.js APIs.
 
+mod spec;
+
+pub use spec::{
+    parse_wardrobe_spec_json, validate_wardrobe_spec, LayoutSpec, SpecError, WardrobeSpec,
+    WARDROBE_SPEC_VERSION,
+};
+
 use thiserror::Error;
 
 /// Recoverable validation errors for numeric fields and future spec rules.

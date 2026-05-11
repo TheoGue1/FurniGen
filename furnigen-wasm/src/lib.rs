@@ -21,6 +21,25 @@ pub fn validate_depth_mm_js(depth_mm: f64) -> Result<(), JsValue> {
     furnigen_core::validate_depth_mm(depth_mm).map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
+/// Parses and validates a [`WardrobeSpec`](furnigen_core::WardrobeSpec) JSON document (mm units).
+#[wasm_bindgen(js_name = validateWardrobeSpecJson)]
+pub fn validate_wardrobe_spec_json(json: &str) -> Result<(), JsValue> {
+    furnigen_core::parse_wardrobe_spec_json(json)
+        .map(drop)
+        .map_err(js_spec_err)
+}
+
+/// Canonical JSON serialization after parse + validate (stable ordering of object keys is not guaranteed).
+#[wasm_bindgen(js_name = normalizeWardrobeSpecJson)]
+pub fn normalize_wardrobe_spec_json(json: &str) -> Result<String, JsValue> {
+    let spec = furnigen_core::parse_wardrobe_spec_json(json).map_err(js_spec_err)?;
+    serde_json::to_string(&spec).map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+fn js_spec_err(e: furnigen_core::SpecError) -> JsValue {
+    JsValue::from_str(&e.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -33,5 +52,14 @@ mod tests {
     #[test]
     fn validate_depth_err_matches_core() {
         assert!(furnigen_core::validate_depth_mm(0.0).is_err());
+    }
+
+    #[test]
+    fn wardrobe_spec_json_round_trip() {
+        const FIXTURE: &str = include_str!("../../spec-fixtures/wardrobe-spec-v1-minimal.json");
+        validate_wardrobe_spec_json(FIXTURE.trim()).unwrap();
+        let out = normalize_wardrobe_spec_json(FIXTURE.trim()).unwrap();
+        assert!(out.contains("\"version\":1"));
+        assert!(out.contains("straight_run"));
     }
 }

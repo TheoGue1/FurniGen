@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
+import minimalFixture from "../../spec-fixtures/wardrobe-spec-v1-minimal.json";
 import { loadFurnigenWasm } from "./lib/wasm/load-furnigen-wasm";
+import { wardrobeSpecSchema } from "./lib/spec/wardrobe-spec";
 
 type WasmStatus = "loading" | "ready" | "error";
 
@@ -16,10 +18,15 @@ export function App() {
       try {
         const wasm = await loadFurnigenWasm();
         wasm.validateDepthMm(600);
+        const specText = JSON.stringify(minimalFixture);
+        wardrobeSpecSchema.parse(JSON.parse(specText));
+        wasm.validateWardrobeSpecJson(specText);
         if (cancelled) {
           return;
         }
-        setWasmDetail(`WASM ${wasm.wasmVersion()} · sample depth 600 mm validated`);
+        setWasmDetail(
+          `WASM ${wasm.wasmVersion()} · depth check + WardrobeSpec v1 golden validated`
+        );
         setWasmStatus("ready");
       } catch (err) {
         if (cancelled) {
