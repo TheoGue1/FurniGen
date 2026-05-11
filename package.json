@@ -1,0 +1,12 @@
+{
+  "name": "furnigen",
+  "private": true,
+  "description": "Root scripts orchestrating Rust and web test entrypoints",
+  "scripts": {
+    "test": "cargo test --workspace && npm --prefix web run test",
+    "test:rust": "cargo test --workspace",
+    "test:web": "npm --prefix web run test",
+    "test:e2e": "npm --prefix web run test:e2e",
+    "ci": "cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace && npm --prefix web run ci"
+  }
+}

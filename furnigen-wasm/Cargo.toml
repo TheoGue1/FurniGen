@@ -1,0 +1,13 @@
+[package]
+name = "furnigen-wasm"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-or-later"
+description = "Browser FFI surface for FurniGen (wasm-bindgen to be wired here)"
+
+[lib]
+# `rlib` keeps `cargo test` on the host target simple; add `cdylib` + wasm-bindgen when packaging WASM.
+crate-type = ["rlib"]
+
+[dependencies]
+furnigen-core = { path = "../furnigen-core" }
