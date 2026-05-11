@@ -1,0 +1,41 @@
+---
+description: TypeScript, React, Vite SPA patterns for web/
+globs: web/**/*.{ts,tsx},**/vite.config.ts
+alwaysApply: false
+---
+
+# TypeScript + React + Vite (`web/`)
+
+## Style
+
+- Prefer **functional** components and hooks; avoid classes.
+- Use **`function` keyword** for top-level helpers and pure functions where it aids hoisting and stack traces.
+- **Named exports** for components and utilities unless a file is a single default route page.
+- Directories: **kebab-case** (e.g. `components/wardrobe-form`).
+
+## Types
+
+- **`strict` TypeScript**; no implicit `any`.
+- Prefer **`interface` for object shapes**; use `type` for unions, mapped types, and utility aliases.
+- Avoid **`enum`**; use string literal unions or `as const` objects.
+
+## Vite
+
+- Use `import.meta.env` for env; keep **VITE\_** prefix for client-exposed vars.
+- Split heavy routes with `React.lazy` + `Suspense` when they measurably help bundle size.
+
+## Data and spec
+
+- **`zod`** (or equivalent) mirrors the wardrobe JSON contract; parse at boundaries (WASM responses, forms, URL state).
+- Keep **Zod schemas colocated** with the TS types they validate (e.g. `spec/` or `lib/spec/`).
+
+## Three.js
+
+- **Units**: treat scene space as **mm** to match WASM/core (scale once at the bridge if needed).
+- Keep **viewer code separate** from form/state modules; feed the viewer plain buffers/metadata from WASM, not ad-hoc scene logic in validation code.
+- Prefer **`useFrame` / explicit disposal** (`dispose`, `URL.revokeObjectURL`) for GPU buffers and loaders; avoid leaking geometries/materials on hot reload.
+
+## Performance
+
+- Memoize only with **measured need** (`useMemo`/`useCallback`/`memo`); default to simple code.
+- Do not block the main thread on large WASM calls without **chunking or worker** offload when exports grow.

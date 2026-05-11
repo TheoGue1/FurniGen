@@ -1,0 +1,22 @@
+---
+description: Conventional Commits for FurniGen history
+alwaysApply: true
+---
+
+# Git commits
+
+Use [Conventional Commits](https://www.conventionalcommits.org/):
+
+```
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+- Common types: **`feat`**, **`fix`**, **`docs`**, **`chore`**, **`ci`**, **`test`**, **`refactor`**, **`perf`**.
+- **Scopes** examples: `core`, `wasm`, `web`, `spec`, `ci`.
+- Breaking changes: **`!`** after the type/scope (`feat(wasm)!: ...`) and/or a **`BREAKING CHANGE:`** footer.
+
+Keep the subject line **imperative** and **~72 characters or fewer**.

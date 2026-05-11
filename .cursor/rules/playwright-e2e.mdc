@@ -1,0 +1,27 @@
+---
+description: Playwright browser tests for FurniGen SPA
+globs: "**/e2e/**/*,**/*.e2e.ts,**/playwright.config.*"
+alwaysApply: false
+---
+
+# Playwright
+
+## Scope
+
+- Use for **vertical slices**: WASM load, first frame rendered, critical form → preview smoke.
+- Avoid duplicating exhaustive **unit** cases already covered by Vitest.
+
+## Stability
+
+- Prefer **`data-testid`** on stable controls over text selectors tied to copy.
+- Use **network idle / explicit waits** on WASM init, not arbitrary `sleep` except as last resort.
+- Run against **`vite preview` or dev server** URL from config; keep baseURL in one place.
+
+## Structure
+
+- One **feature folder** under `e2e/` per major flow (`e2e/preview/`, `e2e/export/`).
+- Share login or seed steps via **fixtures** when persistence exists; keep tests parallel-safe.
+
+## Reporting
+
+- On failure, rely on Playwright **traces/screenshots** in CI; keep trace zip retention policy in CI docs when CI exists.

@@ -1,0 +1,28 @@
+---
+description: Tailwind layout and tokens for web/
+globs: web/**/*.css,web/**/tailwind.config.*
+alwaysApply: false
+---
+
+# Tailwind (`web/`)
+
+## Conventions
+
+- **Mobile-first** breakpoints (`sm:`, `md:`).
+- Prefer **layout utilities** (`flex`, `grid`, `gap`) over ad-hoc absolute positioning unless the design requires it.
+- Use **`@layer`** in CSS only when you need ordered overrides; default Tailwind-first in TSX.
+
+## Design
+
+- Keep UI **minimal and sparse** (parametric tool, not a marketing site): restrained palette, clear typography hierarchy, generous whitespace.
+- Reuse a small set of **semantic spacing** tokens (Tailwind scale) instead of arbitrary pixel classes scattered everywhere.
+
+## Accessibility
+
+- Interactive elements need visible **focus** styles (Tailwind `focus-visible:` or global ring).
+- Pair **color** with text or iconography; do not rely on hue alone for state.
+
+## Anti-patterns
+
+- Avoid `@apply` for large component-shaped blocks; prefer TSX class lists or tiny extracted components.
+- Do not mix **inline styles** for layout that Tailwind already expresses unless integrating third-party canvases.

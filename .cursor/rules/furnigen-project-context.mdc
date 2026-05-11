@@ -1,0 +1,30 @@
+---
+description: FurniGen domain stack, units, licensing context, and doc pointers
+alwaysApply: true
+---
+
+# FurniGen project context
+
+## Architecture
+
+- **`furnigen-core`**: Wardrobe spec types, validation, panel/BOM-oriented structures, pure geometry. No Three.js inside Rust.
+- **`furnigen-wasm`**: Thin `wasm-bindgen` boundary; JSON (or bytes) in, mesh/metadata out. Shares types with core via workspace.
+- **`web/`**: React + TypeScript + Vite + Tailwind; Three.js reads WASM output only.
+
+## Units and layout
+
+- **Canonical units**: millimeters in the spec, Rust core, and JSON on the wire.
+- **UI**: May display inches or mm; convert at the boundary; never store imperial as the source of truth.
+- **Geometry scope (v1)**: Straight runs only. Reserve schema/extension points for future L/U/45° segments without implementing them yet.
+
+## Exports (roadmap)
+
+After interactive preview: cut list/BOM, 2D panel outlines (e.g. SVG/DXF), 3D mesh export (e.g. glTF). Order is flexible; document dependencies in `docs/decisions/` when that directory exists.
+
+## Licensing
+
+- Project targets **GNU GPLv3** (exact variant recorded when `LICENSE` lands). Prefer dependencies compatible with the GPLv3 distribution you intend. Flag license conflicts when adding crates or npm packages.
+
+## Rule provenance
+
+Themes aligned with [PatrickJS/awesome-cursorrules](https://github.com/PatrickJS/awesome-cursorrules) (e.g. TypeScript + Vite + Tailwind, Vitest, Playwright, conventional commits) and `rules-new/` listings; Rust/WASM and furniture-domain rules are **FurniGen-native**, not copied verbatim.

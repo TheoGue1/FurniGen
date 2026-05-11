@@ -1,0 +1,27 @@
+---
+description: wasm-bindgen and wasm-pack practices for furnigen-wasm
+globs: "**/furnigen-wasm/**/*.rs,**/furnigen-wasm/Cargo.toml"
+alwaysApply: false
+---
+
+# Rust WASM (`furnigen-wasm`)
+
+## Boundary
+
+- Expose **small entrypoints** (e.g. `build_preview(spec_json: &str) -> String`) that delegate to `furnigen-core`.
+- Serialize with **`serde_json`** (or agreed format) at the FFI edge; avoid leaking internal Rust types across JS.
+
+## JS interop
+
+- Prefer **`JsValue`** / generated bindings over `unsafe` when possible.
+- Document **panic behavior**; in release, prefer returning **`Result<JsValue, JsValue>`** or a structured error JSON instead of trapping across the boundary.
+
+## Size and build
+
+- Use **`wasm-pack`** with `release` + `opt-level = "z"` / `lto` where appropriate; track `.wasm` size over time.
+- Avoid pulling heavy transitive deps into the WASM crate; keep **feature flags** for optional exporters (glTF, etc.).
+
+## Determinism
+
+- No **ambient** randomness or time in core preview paths unless explicitly requested.
+- Avoid **`SystemTime`** in geometry code shared with WASM.

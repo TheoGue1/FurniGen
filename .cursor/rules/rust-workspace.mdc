@@ -1,0 +1,32 @@
+---
+description: Rust workspace style for furnigen-core and furnigen-wasm
+globs: "**/*.rs,**/Cargo.toml"
+alwaysApply: false
+---
+
+# Rust workspace
+
+## Crates
+
+- **`furnigen-core`**: `std` ok; deterministic geometry; **`serde`** for spec types. No `web_sys`, no Three.
+- **`furnigen-wasm`**: thin **`wasm-bindgen`** surface calling core; minimize allocations on hot paths.
+
+## Quality bar
+
+- Run **`cargo fmt`** and **`cargo clippy`** (warnings as errors in CI when CI lands).
+- Prefer **`thiserror`** (or similar) for recoverable validation errors; avoid stringly-typed errors across crate boundaries.
+- Use **`Result`** for I/O and validation; reserve **`panic!`** for programmer bugs only.
+
+## Numerics
+
+- **`f32` vs `f64`**: pick one per module for geometry and stick to it; document if WASM ABI forces `f32`.
+- Avoid silent unit mixing; name types or fields with **`_mm`** when ambiguity is possible.
+
+## Tests
+
+- **`cargo test`** on core: invariants (panel thickness, box dimensions, straight-run assumptions).
+- Property tests are welcome for numeric ranges when they stay fast.
+
+## Features
+
+- Gate **`console_error_panic_hook`** and dev-only helpers behind **`cfg`** / features so release WASM stays small.

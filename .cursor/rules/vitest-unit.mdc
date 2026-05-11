@@ -1,0 +1,27 @@
+---
+description: Vitest unit and integration tests for TS and WASM bindings
+globs: "**/*.{test,spec}.{ts,tsx},**/vitest.config.*,**/setupTests.ts"
+alwaysApply: false
+---
+
+# Vitest
+
+## Focus
+
+- Test **business logic**, spec/Zod validation, and **WASM bridge** adapters (mock `fetch` of `.wasm` when needed).
+- Do **not** assert Three.js internals; assert on **public outputs** (props, scene graph helpers, or WASM JSON).
+
+## Patterns
+
+- **`vi.mock` hoisted**: place dependency mocks before imports of the module under test when using manual hoisting patterns Vitest documents.
+- Use **`describe` / `it`** with names that read as behavior: `it("rejects negative depth", ...)`.
+- Cover **valid, invalid, and edge** inputs for numeric mm fields (zero, negative, NaN, huge values).
+
+## Quality
+
+- Prefer **`expect` with specific matchers** over snapshot dumps for geometry or large JSON (snapshots go stale fast).
+- Reset mocks in **`beforeEach`** when tests share a module-level `vi.fn`.
+
+## Limits
+
+- Keep files **readable**; extract factories for repeated fixture JSON (golden `WardrobeSpec` samples).
