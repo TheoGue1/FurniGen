@@ -1,5 +1,6 @@
 /target
 **/node_modules/
+web/src/wasm/furnigen-wasm/
 web/dist
 web/playwright-report
 web/test-results

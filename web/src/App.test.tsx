@@ -8,4 +8,9 @@ describe("App", () => {
     expect(screen.getByTestId("app-root")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /furnigen/i })).toBeInTheDocument();
   });
+
+  it("shows a WASM status line while loading or after resolution", () => {
+    render(<App />);
+    expect(screen.getByTestId("wasm-status")).toHaveTextContent(/Loading WASM|WASM failed|sample depth 600 mm validated/);
+  });
 });

@@ -1,0 +1,9 @@
+# wasm-pack web target with Vite
+
+- **Status**: accepted
+- **Date**: 2026-05-11
+- **Context**: The web app needs a reproducible path from `furnigen-wasm` to the browser. Vite is the bundler; wasm-pack supports several JS emit styles. **Vite 6 does not enable the WebAssembly ESM integration proposal**, so wasm-pack’s **`bundler` emit (bare `import … from '*.wasm'`) fails** unless we add a community plugin or extra import attributes.
+- **Decision**: Use **wasm-pack** (0.14+) with **`--target web`** and **`--out-dir ../web/src/wasm/furnigen-wasm`** (path is **relative to the `furnigen-wasm` crate**, not `web/`). The generated glue loads `furnigen_wasm_bg.wasm` via **`fetch(new URL(…, import.meta.url))`**, which Vite and Vitest handle without extra WASM plugins. The SPA dynamically `import()`s the JS entry and **`await`s the default `init()`** before calling exports. `npm` lifecycle scripts (`predev` / `prebuild` / `pretest`) run wasm-pack so dev, production build, and tests stay aligned. **`wasm-pack` is pinned as a `web/` devDependency** (npm `binary-install` shim) so `npm ci` provides the CLI on Linux, macOS, and Windows without a separate global install. CI installs **wasm32-unknown-unknown** via `rust-toolchain` before `npm run test` / e2e.
+- **Alternatives considered**: **`--target bundler`** plus **`vite-plugin-wasm`** (extra dependency and config surface—revisit if we need bundler-specific ergonomics); **`trunk`** (Rust-first web pipeline; not needed while Vite owns the SPA).
+- **Consequences**: Generated `web/src/wasm/furnigen-wasm/` is **gitignored**; contributors and CI need the **wasm32** Rust target. Release builds pay wasm-opt cost unless `--dev` is used (`wasm:build:dev` for local `npm run dev`). **Vitest (jsdom)** does not reliably `fetch` the `.wasm` sibling the way a real browser does; **Playwright** asserts the live WASM path after `vite build`.
+- **Links**: Plan bootstrap checklist; `.cursor/rules/rust-wasm-bindgen.mdc`.

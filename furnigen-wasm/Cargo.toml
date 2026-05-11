@@ -3,11 +3,22 @@ name = "furnigen-wasm"
 version = "0.1.0"
 edition = "2021"
 license = "GPL-3.0-or-later"
-description = "Browser FFI surface for FurniGen (wasm-bindgen to be wired here)"
+description = "Browser FFI surface for FurniGen (wasm-bindgen + wasm-pack)"
 
 [lib]
-# `rlib` keeps `cargo test` on the host target simple; add `cdylib` + wasm-bindgen when packaging WASM.
-crate-type = ["rlib"]
+# `rlib` keeps `cargo test` / `cargo clippy` on the host target working; `cdylib` is what wasm-pack links for `wasm32-unknown-unknown`.
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = []
+# Optional: better panic messages in the browser console during development.
+debug-panic-hook = ["dep:console_error_panic_hook"]
 
 [dependencies]
+console_error_panic_hook = { version = "0.1.7", optional = true }
 furnigen-core = { path = "../furnigen-core" }
+wasm-bindgen = "0.2"
+
+[package.metadata.wasm-pack.profile.release]
+# wasm-opt level; wasm-pack bundles wasm-opt when available.
+wasm-opt = ["-Oz"]
