@@ -1,0 +1,21 @@
+---
+description: Ask user to confirm technical approach before implementing non-trivial work
+alwaysApply: true
+---
+
+# Pre-implementation: confirm with the user
+
+Before you **implement**—editing source to deliver a feature, refactor, or non-trivial fix—when the work **involves or implies** a technical design choice (stack, crates, schema, APIs, export formats, coordinate systems, build wiring, file layout, or other durable architecture), **do not start patching yet**. In your reply first:
+
+1. Summarize the **intended approach** in a short paragraph or tight bullets.
+2. Call out **alternatives** if the request allowed more than one reasonable path.
+3. **Ask the user** to confirm or choose explicitly before you apply changes.
+
+After they confirm, record durable choices per [technical-decision-log](technical-decision-log.mdc) when applicable.
+
+## When you may skip asking
+
+- The user **already stated** the concrete approach in the same message (acknowledge and implement).
+- The task is **purely mechanical** with no design trade-off (e.g. typo, obvious one-line fix from a clear error, requested rename with no ripple).
+
+If unsure whether the gate applies, **ask**.

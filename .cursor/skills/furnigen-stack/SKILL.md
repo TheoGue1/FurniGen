@@ -28,6 +28,6 @@ description: >-
 
 ## References
 
-- Project rules: `.cursor/rules/` (`furnigen-project-context`, `technical-decision-log`, `typescript-react-vite`, `rust-workspace`, etc.).
+- Project rules: `.cursor/rules/` (`furnigen-project-context`, `pre-implementation-decision-check`, `technical-decision-log`, `typescript-react-vite`, `rust-workspace`, etc.).
 - Decision log: [`docs/decisions/`](../../../docs/decisions/).
 - External inspiration list: [awesome-cursorrules](https://github.com/PatrickJS/awesome-cursorrules) (not domain-specific).

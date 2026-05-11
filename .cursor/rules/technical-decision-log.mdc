@@ -5,6 +5,8 @@ alwaysApply: true
 
 # Technical decision log (ADRs)
 
+Before implementing work that needs a design call, confirm with the user per [pre-implementation-decision-check](pre-implementation-decision-check.mdc).
+
 When you make or materially change a **non-trivial** technical choice (framework, crate, schema field, export format, coordinate system, build wiring), **add or update** an entry in [`docs/decisions/`](../../docs/decisions/).
 
 ## File naming
