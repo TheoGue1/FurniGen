@@ -13,8 +13,8 @@ pub struct BomDocument {
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct BomPartRow {
-    pub id: &'static str,
-    pub label: &'static str,
+    pub id: String,
+    pub label: String,
     pub width_mm: f64,
     pub height_mm: f64,
     pub qty: u32,

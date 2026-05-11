@@ -21,6 +21,19 @@ describe("WardrobeSpec Zod contract (golden fixtures)", () => {
       expect(spec.layout.depth_mm).toBe(600);
     }
     expect(spec.extensions).toEqual({});
+    expect(spec.interior).toBeUndefined();
+  });
+
+  it("accepts optional interior stub and round-trips", () => {
+    const raw = JSON.stringify({
+      version: 1,
+      layout: { type: "straight_run", width_mm: 1, height_mm: 2, depth_mm: 3 },
+      interior: { type: "stub" },
+    });
+    const spec = parseWardrobeSpecJson(raw);
+    expect(spec.interior).toEqual({ type: "stub" });
+    const again = wardrobeSpecSchema.parse(JSON.parse(JSON.stringify(spec)));
+    expect(again).toEqual(spec);
   });
 
   it("rejects invalid depth from golden", () => {

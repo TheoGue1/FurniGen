@@ -5,18 +5,22 @@
 mod bom;
 mod export_2d;
 mod export_mesh;
+mod inner_volume;
 mod panels;
 mod preview_mesh;
+mod shelf_mesh;
 mod spec;
 
 pub use bom::{bom_to_csv, build_bom, BomDocument, BomPartRow};
 pub use export_2d::{build_panels_dxf, build_panels_svg};
 pub use export_mesh::{preview_mesh_to_gltf, preview_mesh_to_obj, MeshExportError};
+pub use inner_volume::{inner_volume_mm, StraightRunInnerVolume};
 pub use panels::{panel_blanks_for_spec, PanelBlank};
 pub use preview_mesh::{build_preview_mesh, PreviewMesh};
+pub use shelf_mesh::{append_shelf_bottom_face_mm, append_shelf_top_face_mm};
 pub use spec::{
-    parse_wardrobe_spec_json, validate_wardrobe_spec, LayoutSpec, SpecError, WardrobeSpec,
-    WARDROBE_SPEC_VERSION,
+    parse_wardrobe_spec_json, validate_wardrobe_spec, InteriorSpec, LayoutSpec, SpecError,
+    WardrobeSpec, WARDROBE_SPEC_VERSION,
 };
 
 use thiserror::Error;

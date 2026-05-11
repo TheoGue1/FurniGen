@@ -7,11 +7,21 @@ use thiserror::Error;
 /// Supported top-level contract revision (bump when breaking JSON shape).
 pub const WARDROBE_SPEC_VERSION: u32 = 1;
 
+/// Interior fittings (shelves, uprights, …). Stub only until shelf modes are wired through mesh/BOM.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum InteriorSpec {
+    /// Placeholder; ignored by preview and panel generators in this milestone.
+    Stub,
+}
+
 /// Root document exchanged with WASM and the web UI.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct WardrobeSpec {
     pub version: u32,
     pub layout: LayoutSpec,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interior: Option<InteriorSpec>,
     #[serde(default, skip_serializing_if = "Map::is_empty")]
     pub extensions: Map<String, serde_json::Value>,
 }
@@ -98,6 +108,7 @@ mod tests {
         let spec = parse_wardrobe_spec_json(MINIMAL.trim()).unwrap();
         assert_eq!(spec.version, 1);
         assert!(spec.extensions.is_empty());
+        assert_eq!(spec.interior, None);
         assert_eq!(
             spec.layout,
             LayoutSpec::StraightRun {
@@ -106,6 +117,17 @@ mod tests {
                 depth_mm: 600.0,
             }
         );
+    }
+
+    #[test]
+    fn interior_stub_round_trips_json() {
+        let json = r#"{"version":1,"layout":{"type":"straight_run","width_mm":1.0,"height_mm":2.0,"depth_mm":3.0},"interior":{"type":"stub"}}"#;
+        let spec: WardrobeSpec = serde_json::from_str(json).unwrap();
+        assert_eq!(spec.interior, Some(InteriorSpec::Stub));
+        validate_wardrobe_spec(&spec).unwrap();
+        let again: WardrobeSpec =
+            serde_json::from_str(&serde_json::to_string(&spec).unwrap()).unwrap();
+        assert_eq!(spec, again);
     }
 
     #[test]

@@ -35,7 +35,7 @@ pub fn build_panels_svg(spec: &WardrobeSpec) -> String {
             y = MARGIN,
             w = p.width_mm,
             h = p.height_mm,
-            label = escape_xml(p.label),
+            label = escape_xml(&p.label),
             ty = p.height_mm - 6.0,
         )
         .expect("fmt");
@@ -71,7 +71,7 @@ pub fn build_panels_dxf(spec: &WardrobeSpec) -> String {
         let h = p.height_mm;
         let ox = origin_x;
         let oy = 0.0;
-        let layer = p.id;
+        let layer = p.id.as_str();
         // CCW rectangle in XY (shop drawing plane)
         line_dxf(&mut out, layer, (ox, oy, 0.0), (ox + w, oy, 0.0));
         line_dxf(&mut out, layer, (ox + w, oy, 0.0), (ox + w, oy + h, 0.0));

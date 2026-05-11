@@ -13,13 +13,20 @@ const straightRunLayoutSchema = z.object({
 /** v1 straight run only; widen to `z.discriminatedUnion` when multiple `type` values exist. */
 export const layoutSpecSchema = straightRunLayoutSchema;
 
+/** Mirrors `furnigen_core::InteriorSpec` (stub until shelf modes land). */
+export const interiorSpecSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("stub") }),
+]);
+
 export const wardrobeSpecSchema = z.object({
   version: z.literal(WARDROBE_SPEC_VERSION),
   layout: layoutSpecSchema,
+  interior: interiorSpecSchema.optional(),
   extensions: z.record(z.string(), z.unknown()).optional().default({}),
 });
 
 export type LayoutSpec = z.infer<typeof layoutSpecSchema>;
+export type InteriorSpec = z.infer<typeof interiorSpecSchema>;
 export type WardrobeSpec = z.infer<typeof wardrobeSpecSchema>;
 
 export function parseWardrobeSpecJson(json: string): WardrobeSpec {
