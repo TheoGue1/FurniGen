@@ -24,6 +24,16 @@ describe("WardrobeSpec Zod contract (golden fixtures)", () => {
     expect(spec.interior).toBeUndefined();
   });
 
+  it("accepts equal_spacing_shelves interior", () => {
+    const raw = JSON.stringify({
+      version: 1,
+      layout: { type: "straight_run", width_mm: 2400, height_mm: 2200, depth_mm: 600 },
+      interior: { type: "equal_spacing_shelves", shelf_count: 3 },
+    });
+    const spec = parseWardrobeSpecJson(raw);
+    expect(spec.interior).toEqual({ type: "equal_spacing_shelves", shelf_count: 3 });
+  });
+
   it("accepts optional interior stub and round-trips", () => {
     const raw = JSON.stringify({
       version: 1,

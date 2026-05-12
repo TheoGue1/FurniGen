@@ -7,12 +7,18 @@ use thiserror::Error;
 /// Supported top-level contract revision (bump when breaking JSON shape).
 pub const WARDROBE_SPEC_VERSION: u32 = 1;
 
-/// Interior fittings (shelves, uprights, …). Stub only until shelf modes are wired through mesh/BOM.
+/// Interior fittings (shelves, uprights, …).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum InteriorSpec {
-    /// Placeholder; ignored by preview and panel generators in this milestone.
+    /// Placeholder; no extra geometry.
     Stub,
+    /// `shelf_count` horizontal boards with equal air gaps to inner floor, between boards, and to inner top.
+    EqualSpacingShelves {
+        shelf_count: u32,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        shelf_thickness_mm: Option<f64>,
+    },
 }
 
 /// Root document exchanged with WASM and the web UI.
@@ -81,9 +87,42 @@ pub fn validate_wardrobe_spec(spec: &WardrobeSpec) -> Result<(), SpecError> {
             validate_positive_finite("width_mm", *width_mm)?;
             validate_positive_finite("height_mm", *height_mm)?;
             validate_positive_finite("depth_mm", *depth_mm)?;
+            validate_interior_for_height(spec.interior.as_ref(), *height_mm)?;
         }
     }
     Ok(())
+}
+
+fn validate_interior_for_height(
+    interior: Option<&InteriorSpec>,
+    inner_height_mm: f64,
+) -> Result<(), SpecError> {
+    let Some(interior) = interior else {
+        return Ok(());
+    };
+    match interior {
+        InteriorSpec::Stub => Ok(()),
+        InteriorSpec::EqualSpacingShelves {
+            shelf_count,
+            shelf_thickness_mm,
+        } => {
+            if *shelf_count < 1 {
+                return Err(SpecError::Validation(
+                    "shelf_count must be at least 1".to_owned(),
+                ));
+            }
+            let t =
+                shelf_thickness_mm.unwrap_or(crate::interior_shelves::DEFAULT_SHELF_THICKNESS_MM);
+            validate_positive_finite("shelf_thickness_mm", t)?;
+            crate::interior_shelves::equal_spacing_shelf_bottoms_mm(
+                inner_height_mm,
+                *shelf_count,
+                t,
+            )
+            .map_err(SpecError::Validation)?;
+            Ok(())
+        }
+    }
 }
 
 /// Parses JSON then validates. All numeric fields are **millimeters**.
@@ -128,6 +167,27 @@ mod tests {
         let again: WardrobeSpec =
             serde_json::from_str(&serde_json::to_string(&spec).unwrap()).unwrap();
         assert_eq!(spec, again);
+    }
+
+    #[test]
+    fn interior_equal_spacing_shelves_round_trips_and_validates() {
+        let json = r#"{"version":1,"layout":{"type":"straight_run","width_mm":2400.0,"height_mm":2200.0,"depth_mm":600.0},"interior":{"type":"equal_spacing_shelves","shelf_count":4}}"#;
+        let spec: WardrobeSpec = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            spec.interior,
+            Some(InteriorSpec::EqualSpacingShelves {
+                shelf_count: 4,
+                shelf_thickness_mm: None,
+            })
+        );
+        validate_wardrobe_spec(&spec).unwrap();
+    }
+
+    #[test]
+    fn interior_equal_spacing_rejects_impossible_fit() {
+        let json = r#"{"version":1,"layout":{"type":"straight_run","width_mm":1000.0,"height_mm":100.0,"depth_mm":400.0},"interior":{"type":"equal_spacing_shelves","shelf_count":20,"shelf_thickness_mm":18.0}}"#;
+        let err = parse_wardrobe_spec_json(json).unwrap_err();
+        assert!(matches!(err, SpecError::Validation(_)));
     }
 
     #[test]

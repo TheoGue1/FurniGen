@@ -13,9 +13,14 @@ const straightRunLayoutSchema = z.object({
 /** v1 straight run only; widen to `z.discriminatedUnion` when multiple `type` values exist. */
 export const layoutSpecSchema = straightRunLayoutSchema;
 
-/** Mirrors `furnigen_core::InteriorSpec` (stub until shelf modes land). */
+/** Mirrors `furnigen_core::InteriorSpec`. */
 export const interiorSpecSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("stub") }),
+  z.object({
+    type: z.literal("equal_spacing_shelves"),
+    shelf_count: z.number().int().min(1).max(500),
+    shelf_thickness_mm: z.number().finite().positive().optional(),
+  }),
 ]);
 
 export const wardrobeSpecSchema = z.object({

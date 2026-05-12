@@ -80,4 +80,14 @@ mod tests {
         assert!(csv.starts_with("id,label,width_mm,height_mm,qty,thickness_mm\n"));
         assert!(csv.contains("back,Back,2400,2200,1,"));
     }
+
+    #[test]
+    fn bom_includes_shelf_rows_when_interior_equal_spacing() {
+        let json = r#"{"version":1,"layout":{"type":"straight_run","width_mm":2400.0,"height_mm":2200.0,"depth_mm":600.0},"interior":{"type":"equal_spacing_shelves","shelf_count":2}}"#;
+        let spec = parse_wardrobe_spec_json(json).unwrap();
+        let bom = build_bom(&spec);
+        assert_eq!(bom.parts.len(), 7);
+        assert!(bom.parts.iter().any(|p| p.id == "shelf_01"));
+        assert!(bom.parts.iter().any(|p| p.id == "shelf_02"));
+    }
 }

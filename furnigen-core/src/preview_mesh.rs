@@ -2,7 +2,9 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{LayoutSpec, WardrobeSpec};
+use crate::interior_shelves::{equal_spacing_shelf_bottoms_mm, DEFAULT_SHELF_THICKNESS_MM};
+use crate::shelf_mesh::{append_shelf_bottom_face_mm, append_shelf_top_face_mm};
+use crate::{InteriorSpec, LayoutSpec, WardrobeSpec};
 
 /// Interleaved `x,y,z` positions and triangle `indices` (u32 element buffer).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -18,7 +20,40 @@ pub fn build_preview_mesh(spec: &WardrobeSpec) -> PreviewMesh {
             width_mm: w,
             height_mm: h,
             depth_mm: d,
-        } => build_open_front_box_mm(*w as f32, *h as f32, *d as f32),
+        } => {
+            let mut mesh = build_open_front_box_mm(*w as f32, *h as f32, *d as f32);
+            append_interior_shelf_quads(&mut mesh, spec, *w, *h, *d);
+            mesh
+        }
+    }
+}
+
+fn append_interior_shelf_quads(
+    mesh: &mut PreviewMesh,
+    spec: &WardrobeSpec,
+    width_mm: f64,
+    inner_height_mm: f64,
+    depth_mm: f64,
+) {
+    let Some(InteriorSpec::EqualSpacingShelves {
+        shelf_count,
+        shelf_thickness_mm,
+    }) = &spec.interior
+    else {
+        return;
+    };
+    let t = shelf_thickness_mm.unwrap_or(DEFAULT_SHELF_THICKNESS_MM);
+    let Ok(bottoms) = equal_spacing_shelf_bottoms_mm(inner_height_mm, *shelf_count, t) else {
+        return;
+    };
+    let w = width_mm as f32;
+    let d = depth_mm as f32;
+    let t_f = t as f32;
+    for yb in bottoms {
+        let y0 = yb as f32;
+        let y1 = y0 + t_f;
+        append_shelf_bottom_face_mm(&mut mesh.positions, &mut mesh.indices, y0, w, d);
+        append_shelf_top_face_mm(&mut mesh.positions, &mut mesh.indices, y1, w, d);
     }
 }
 
@@ -110,5 +145,14 @@ mod tests {
         assert!((max[0] - 2400.0).abs() < 1e-3);
         assert!((max[1] - 2200.0).abs() < 1e-3);
         assert!((max[2] - 600.0).abs() < 1e-3);
+    }
+
+    #[test]
+    fn straight_run_with_equal_spacing_shelves_adds_vertices() {
+        let json = r#"{"version":1,"layout":{"type":"straight_run","width_mm":2400.0,"height_mm":2200.0,"depth_mm":600.0},"interior":{"type":"equal_spacing_shelves","shelf_count":3}}"#;
+        let spec = parse_wardrobe_spec_json(json.trim()).unwrap();
+        let mesh = build_preview_mesh(&spec);
+        assert!(mesh.positions.len() > 60);
+        assert!(mesh.indices.len() > 30);
     }
 }

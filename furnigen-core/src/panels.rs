@@ -2,7 +2,8 @@
 
 use serde::Serialize;
 
-use crate::{LayoutSpec, WardrobeSpec};
+use crate::interior_shelves::{equal_spacing_shelf_bottoms_mm, DEFAULT_SHELF_THICKNESS_MM};
+use crate::{InteriorSpec, LayoutSpec, WardrobeSpec};
 
 /// One rectangular stock panel: two in-plane dimensions before edge banding / thickness offsets.
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -22,7 +23,28 @@ pub fn panel_blanks_for_spec(spec: &WardrobeSpec) -> Vec<PanelBlank> {
             width_mm: w,
             height_mm: h,
             depth_mm: d,
-        } => straight_run_open_front_panels(*w, *h, *d),
+        } => {
+            let mut panels = straight_run_open_front_panels(*w, *h, *d);
+            if let Some(InteriorSpec::EqualSpacingShelves {
+                shelf_count,
+                shelf_thickness_mm,
+            }) = &spec.interior
+            {
+                let t = shelf_thickness_mm.unwrap_or(DEFAULT_SHELF_THICKNESS_MM);
+                if let Ok(bottoms) = equal_spacing_shelf_bottoms_mm(*h, *shelf_count, t) {
+                    for i in 0..bottoms.len() {
+                        let n = i + 1;
+                        panels.push(PanelBlank {
+                            id: format!("shelf_{n:02}"),
+                            label: format!("Shelf {n}"),
+                            width_mm: *w,
+                            height_mm: *d,
+                        });
+                    }
+                }
+            }
+            panels
+        }
     }
 }
 

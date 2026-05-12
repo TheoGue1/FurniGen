@@ -13,6 +13,7 @@ const defaultSpec: WardrobeSpec = {
     height_mm: 2200,
     depth_mm: 600,
   },
+  interior: { type: "equal_spacing_shelves", shelf_count: 4 },
   extensions: {},
 };
 
@@ -24,6 +25,7 @@ export function App() {
     width_mm: defaultSpec.layout.width_mm,
     height_mm: defaultSpec.layout.height_mm,
     depth_mm: defaultSpec.layout.depth_mm,
+    shelf_count: defaultSpec.interior?.type === "equal_spacing_shelves" ? defaultSpec.interior.shelf_count : 4,
   });
 
   useEffect(() => {
@@ -73,6 +75,10 @@ export function App() {
             height_mm: dims.height_mm,
             depth_mm: dims.depth_mm,
           },
+          interior:
+            dims.shelf_count >= 1
+              ? { type: "equal_spacing_shelves", shelf_count: Math.floor(dims.shelf_count) }
+              : undefined,
           extensions: {},
         };
         wardrobeSpecSchema.parse(spec);
@@ -85,7 +91,7 @@ export function App() {
         }
         setPreviewMeshJson(meshJson);
         setWasmDetail(
-          `WASM ${wasm.wasmVersion()} · ${Math.round(dims.width_mm)}×${Math.round(dims.height_mm)}×${Math.round(dims.depth_mm)} mm · WardrobeSpec v1 + preview mesh`
+          `WASM ${wasm.wasmVersion()} · ${Math.round(dims.width_mm)}×${Math.round(dims.height_mm)}×${Math.round(dims.depth_mm)} mm · ${dims.shelf_count >= 1 ? `${Math.floor(dims.shelf_count)} shelf boards` : "no shelves"} · WardrobeSpec v1 + preview mesh`
         );
       } catch (err) {
         if (cancelled) {
@@ -100,7 +106,7 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [wasmStatus, dims.width_mm, dims.height_mm, dims.depth_mm]);
+  }, [wasmStatus, dims.width_mm, dims.height_mm, dims.depth_mm, dims.shelf_count]);
 
   const meshForViewer = wasmStatus === "ready" && previewMeshJson ? previewMeshJson : null;
 
@@ -171,6 +177,25 @@ export function App() {
                   return;
                 }
                 setDims((d) => ({ ...d, depth_mm: v }));
+              }}
+            />
+          </label>
+          <label className="flex min-w-[7.5rem] flex-col gap-1 text-xs text-slate-400">
+            Shelves (equal spacing)
+            <input
+              data-testid="input-shelf-count"
+              className="rounded border border-slate-600 bg-slate-900 px-2 py-1.5 text-sm text-slate-100"
+              type="number"
+              min={0}
+              max={500}
+              step={1}
+              value={dims.shelf_count}
+              onChange={(e) => {
+                const v = e.target.valueAsNumber;
+                if (!Number.isFinite(v) || v < 0 || v > 500) {
+                  return;
+                }
+                setDims((d) => ({ ...d, shelf_count: v }));
               }}
             />
           </label>
