@@ -5,7 +5,7 @@ import { wardrobeSpecSchema, type WardrobeSpec } from "./lib/spec/wardrobe-spec"
 
 type WasmStatus = "loading" | "ready" | "error";
 
-type InteriorUiMode = "none" | "equal_spacing";
+type InteriorUiMode = "none" | "equal_spacing" | "explicit_heights";
 
 function parseOptionalShelfThicknessMm(raw: string): number | undefined {
   const t = raw.trim();
@@ -14,6 +14,28 @@ function parseOptionalShelfThicknessMm(raw: string): number | undefined {
   }
   const v = Number(t);
   if (!Number.isFinite(v) || v <= 0) {
+    return undefined;
+  }
+  return v;
+}
+
+/** Parses shelf bottom Y values (mm); one per line or comma-separated. Order preserved. */
+function parseShelfBottomYListMm(raw: string): number[] {
+  return raw
+    .split(/[\s,;]+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0)
+    .map((s) => Number(s))
+    .filter((n) => Number.isFinite(n));
+}
+
+function parseOptionalMinGapMm(raw: string): number | undefined {
+  const t = raw.trim();
+  if (t === "") {
+    return undefined;
+  }
+  const v = Number(t);
+  if (!Number.isFinite(v) || v < 0) {
     return undefined;
   }
   return v;
@@ -31,6 +53,9 @@ export function App() {
     shelf_count: 4,
     /** Empty string = use core default (18 mm); otherwise positive mm sent as `shelf_thickness_mm`. */
     shelf_thickness_mm_str: "",
+    /** For explicit shelf mode: one Y per line or comma-separated (mm from inner floor, ascending). */
+    explicit_shelf_bottoms_y_str: "400\n1000\n1600",
+    explicit_min_gap_mm_str: "",
   });
 
   useEffect(() => {
@@ -80,7 +105,18 @@ export function App() {
                 shelf_count: Math.max(1, Math.floor(dims.shelf_count)),
                 ...(shelfThicknessMm !== undefined ? { shelf_thickness_mm: shelfThicknessMm } : {}),
               }
-            : undefined;
+            : dims.interiorMode === "explicit_heights"
+              ? (() => {
+                  const shelf_bottom_y_mm = parseShelfBottomYListMm(dims.explicit_shelf_bottoms_y_str);
+                  const minGapMm = parseOptionalMinGapMm(dims.explicit_min_gap_mm_str);
+                  return {
+                    type: "explicit_shelf_heights" as const,
+                    shelf_bottom_y_mm,
+                    ...(shelfThicknessMm !== undefined ? { shelf_thickness_mm: shelfThicknessMm } : {}),
+                    ...(minGapMm !== undefined ? { min_gap_mm: minGapMm } : {}),
+                  };
+                })()
+              : undefined;
         const spec: WardrobeSpec = {
           version: 1,
           layout: {
@@ -104,9 +140,13 @@ export function App() {
         const interiorLabel =
           dims.interiorMode === "none"
             ? "no interior"
-            : `${Math.max(1, Math.floor(dims.shelf_count))} shelf boards (equal spacing)${
-                shelfThicknessMm !== undefined ? ` · shelf ${shelfThicknessMm} mm thick` : ""
-              }`;
+            : dims.interiorMode === "equal_spacing"
+              ? `${Math.max(1, Math.floor(dims.shelf_count))} shelf boards (equal spacing)${
+                  shelfThicknessMm !== undefined ? ` · shelf ${shelfThicknessMm} mm thick` : ""
+                }`
+              : `${parseShelfBottomYListMm(dims.explicit_shelf_bottoms_y_str).length} explicit shelf bottom Y value(s)${
+                  shelfThicknessMm !== undefined ? ` · shelf ${shelfThicknessMm} mm thick` : ""
+                }`;
         setWasmDetail(
           `WASM ${wasm.wasmVersion()} · ${Math.round(dims.width_mm)}×${Math.round(dims.height_mm)}×${Math.round(dims.depth_mm)} mm · ${interiorLabel} · WardrobeSpec v1 + preview mesh`
         );
@@ -131,6 +171,8 @@ export function App() {
     dims.interiorMode,
     dims.shelf_count,
     dims.shelf_thickness_mm_str,
+    dims.explicit_shelf_bottoms_y_str,
+    dims.explicit_min_gap_mm_str,
   ]);
 
   const meshForViewer = wasmStatus === "ready" && previewMeshJson ? previewMeshJson : null;
@@ -164,6 +206,7 @@ export function App() {
             >
               <option value="none">None</option>
               <option value="equal_spacing">Equal spacing shelves</option>
+              <option value="explicit_heights">Explicit shelf bottom Y (mm)</option>
             </select>
           </label>
           <label className="flex min-w-[7.5rem] flex-col gap-1 text-xs text-slate-400">
@@ -220,38 +263,68 @@ export function App() {
               }}
             />
           </label>
+          {(dims.interiorMode === "equal_spacing" || dims.interiorMode === "explicit_heights") && (
+            <label className="flex min-w-[10rem] flex-col gap-1 text-xs text-slate-400">
+              Shelf thickness (mm, optional)
+              <input
+                data-testid="input-shelf-thickness-mm"
+                className="rounded border border-slate-600 bg-slate-900 px-2 py-1.5 text-sm text-slate-100"
+                type="text"
+                inputMode="decimal"
+                placeholder="default 18"
+                value={dims.shelf_thickness_mm_str}
+                onChange={(e) => {
+                  setDims((d) => ({ ...d, shelf_thickness_mm_str: e.target.value }));
+                }}
+              />
+            </label>
+          )}
           {dims.interiorMode === "equal_spacing" && (
+            <label className="flex min-w-[7.5rem] flex-col gap-1 text-xs text-slate-400">
+              Shelf count
+              <input
+                data-testid="input-shelf-count"
+                className="rounded border border-slate-600 bg-slate-900 px-2 py-1.5 text-sm text-slate-100"
+                type="number"
+                min={1}
+                max={500}
+                step={1}
+                value={dims.shelf_count}
+                onChange={(e) => {
+                  const v = e.target.valueAsNumber;
+                  if (!Number.isFinite(v) || v < 1 || v > 500) {
+                    return;
+                  }
+                  setDims((d) => ({ ...d, shelf_count: v }));
+                }}
+              />
+            </label>
+          )}
+          {dims.interiorMode === "explicit_heights" && (
             <>
-              <label className="flex min-w-[7.5rem] flex-col gap-1 text-xs text-slate-400">
-                Shelf count
-                <input
-                  data-testid="input-shelf-count"
-                  className="rounded border border-slate-600 bg-slate-900 px-2 py-1.5 text-sm text-slate-100"
-                  type="number"
-                  min={1}
-                  max={500}
-                  step={1}
-                  value={dims.shelf_count}
+              <label className="flex min-w-[14rem] max-w-md flex-col gap-1 text-xs text-slate-400">
+                Shelf bottom Y (mm), ascending
+                <textarea
+                  data-testid="textarea-explicit-shelf-y-mm"
+                  className="min-h-[5.5rem] rounded border border-slate-600 bg-slate-900 px-2 py-1.5 font-mono text-sm text-slate-100"
+                  spellCheck={false}
+                  value={dims.explicit_shelf_bottoms_y_str}
                   onChange={(e) => {
-                    const v = e.target.valueAsNumber;
-                    if (!Number.isFinite(v) || v < 1 || v > 500) {
-                      return;
-                    }
-                    setDims((d) => ({ ...d, shelf_count: v }));
+                    setDims((d) => ({ ...d, explicit_shelf_bottoms_y_str: e.target.value }));
                   }}
                 />
               </label>
-              <label className="flex min-w-[10rem] flex-col gap-1 text-xs text-slate-400">
-                Shelf thickness (mm, optional)
+              <label className="flex min-w-[9rem] flex-col gap-1 text-xs text-slate-400">
+                Min gap between shelves (mm, optional)
                 <input
-                  data-testid="input-shelf-thickness-mm"
+                  data-testid="input-explicit-min-gap-mm"
                   className="rounded border border-slate-600 bg-slate-900 px-2 py-1.5 text-sm text-slate-100"
                   type="text"
                   inputMode="decimal"
-                  placeholder="default 18"
-                  value={dims.shelf_thickness_mm_str}
+                  placeholder="default 0"
+                  value={dims.explicit_min_gap_mm_str}
                   onChange={(e) => {
-                    setDims((d) => ({ ...d, shelf_thickness_mm_str: e.target.value }));
+                    setDims((d) => ({ ...d, explicit_min_gap_mm_str: e.target.value }));
                   }}
                 />
               </label>

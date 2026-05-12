@@ -33,6 +33,19 @@ describe("WardrobeSpec Zod contract (golden fixtures)", () => {
     });
   });
 
+  it("rejects explicit_shelf_heights with negative min_gap_mm", () => {
+    const raw = JSON.stringify({
+      version: 1,
+      layout: { type: "straight_run", width_mm: 2400, height_mm: 2200, depth_mm: 600 },
+      interior: {
+        type: "explicit_shelf_heights",
+        shelf_bottom_y_mm: [400, 1000],
+        min_gap_mm: -1,
+      },
+    });
+    expect(() => parseWardrobeSpecJson(raw)).toThrow();
+  });
+
   it("rejects equal_spacing_shelves with shelf_count below 1", () => {
     const raw = JSON.stringify({
       version: 1,
@@ -40,6 +53,35 @@ describe("WardrobeSpec Zod contract (golden fixtures)", () => {
       interior: { type: "equal_spacing_shelves", shelf_count: 0 },
     });
     expect(() => parseWardrobeSpecJson(raw)).toThrow();
+  });
+
+  it("accepts golden explicit_shelf_heights fixture", () => {
+    const raw = fixture("wardrobe-spec-v1-explicit-shelf-heights.json");
+    const spec = parseWardrobeSpecJson(raw);
+    expect(spec.interior).toEqual({
+      type: "explicit_shelf_heights",
+      shelf_bottom_y_mm: [400, 1000, 1600],
+    });
+  });
+
+  it("accepts explicit_shelf_heights with optional fields", () => {
+    const raw = JSON.stringify({
+      version: 1,
+      layout: { type: "straight_run", width_mm: 2400, height_mm: 2200, depth_mm: 600 },
+      interior: {
+        type: "explicit_shelf_heights",
+        shelf_bottom_y_mm: [400, 1000, 1600],
+        shelf_thickness_mm: 25,
+        min_gap_mm: 2,
+      },
+    });
+    const spec = parseWardrobeSpecJson(raw);
+    expect(spec.interior).toEqual({
+      type: "explicit_shelf_heights",
+      shelf_bottom_y_mm: [400, 1000, 1600],
+      shelf_thickness_mm: 25,
+      min_gap_mm: 2,
+    });
   });
 
   it("accepts equal_spacing_shelves interior", () => {

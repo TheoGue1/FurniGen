@@ -2,7 +2,9 @@
 
 use serde::Serialize;
 
-use crate::interior_shelves::{equal_spacing_shelf_bottoms_mm, DEFAULT_SHELF_THICKNESS_MM};
+use crate::interior_shelves::{
+    equal_spacing_shelf_bottoms_mm, validate_explicit_shelf_bottoms_mm, DEFAULT_SHELF_THICKNESS_MM,
+};
 use crate::{InteriorSpec, LayoutSpec, WardrobeSpec};
 
 /// One rectangular stock panel: two in-plane dimensions before edge banding / thickness offsets.
@@ -25,13 +27,27 @@ pub fn panel_blanks_for_spec(spec: &WardrobeSpec) -> Vec<PanelBlank> {
             depth_mm: d,
         } => {
             let mut panels = straight_run_open_front_panels(*w, *h, *d);
-            if let Some(InteriorSpec::EqualSpacingShelves {
-                shelf_count,
-                shelf_thickness_mm,
-            }) = &spec.interior
-            {
-                let t = shelf_thickness_mm.unwrap_or(DEFAULT_SHELF_THICKNESS_MM);
-                if let Ok(bottoms) = equal_spacing_shelf_bottoms_mm(*h, *shelf_count, t) {
+            if let Some(interior) = &spec.interior {
+                let bottoms = match interior {
+                    InteriorSpec::EqualSpacingShelves {
+                        shelf_count,
+                        shelf_thickness_mm,
+                    } => {
+                        let t = shelf_thickness_mm.unwrap_or(DEFAULT_SHELF_THICKNESS_MM);
+                        equal_spacing_shelf_bottoms_mm(*h, *shelf_count, t).ok()
+                    }
+                    InteriorSpec::ExplicitShelfHeights {
+                        shelf_bottom_y_mm,
+                        shelf_thickness_mm,
+                        min_gap_mm,
+                    } => {
+                        let t = shelf_thickness_mm.unwrap_or(DEFAULT_SHELF_THICKNESS_MM);
+                        validate_explicit_shelf_bottoms_mm(*h, shelf_bottom_y_mm, t, *min_gap_mm)
+                            .ok()
+                    }
+                    InteriorSpec::Stub => None,
+                };
+                if let Some(bottoms) = bottoms {
                     for i in 0..bottoms.len() {
                         let n = i + 1;
                         panels.push(PanelBlank {

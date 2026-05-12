@@ -141,6 +141,19 @@ mod tests {
     }
 
     #[test]
+    fn explicit_shelf_heights_interior_bom_and_svg_include_shelves() {
+        const FIXTURE: &str =
+            include_str!("../../spec-fixtures/wardrobe-spec-v1-explicit-shelf-heights.json");
+        let j = FIXTURE.trim();
+        validate_wardrobe_spec_json(j).unwrap();
+        let bom = build_wardrobe_bom_json(j).unwrap();
+        assert!(bom.contains("shelf_01"));
+        assert!(bom.contains("shelf_03"));
+        let svg = build_wardrobe_panels_svg(j).unwrap();
+        assert!(svg.contains("id=\"shelf_01\""));
+    }
+
+    #[test]
     fn equal_spacing_interior_bom_and_svg_include_shelves() {
         const FIXTURE: &str =
             include_str!("../../spec-fixtures/wardrobe-spec-v1-equal-spacing-shelves.json");

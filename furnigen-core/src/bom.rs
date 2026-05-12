@@ -82,6 +82,16 @@ mod tests {
     }
 
     #[test]
+    fn bom_includes_shelf_rows_when_interior_explicit_heights() {
+        let json = r#"{"version":1,"layout":{"type":"straight_run","width_mm":2400.0,"height_mm":2200.0,"depth_mm":600.0},"interior":{"type":"explicit_shelf_heights","shelf_bottom_y_mm":[400.0,1100.0]}}"#;
+        let spec = parse_wardrobe_spec_json(json).unwrap();
+        let bom = build_bom(&spec);
+        assert_eq!(bom.parts.len(), 7);
+        assert!(bom.parts.iter().any(|p| p.id == "shelf_01"));
+        assert!(bom.parts.iter().any(|p| p.id == "shelf_02"));
+    }
+
+    #[test]
     fn bom_includes_shelf_rows_when_interior_equal_spacing() {
         let json = r#"{"version":1,"layout":{"type":"straight_run","width_mm":2400.0,"height_mm":2200.0,"depth_mm":600.0},"interior":{"type":"equal_spacing_shelves","shelf_count":2}}"#;
         let spec = parse_wardrobe_spec_json(json).unwrap();

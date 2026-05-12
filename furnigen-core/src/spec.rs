@@ -19,6 +19,14 @@ pub enum InteriorSpec {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         shelf_thickness_mm: Option<f64>,
     },
+    /// Fixed shelf board bottoms (mm from inner floor), strictly ascending; optional `min_gap_mm` between boards.
+    ExplicitShelfHeights {
+        shelf_bottom_y_mm: Vec<f64>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        shelf_thickness_mm: Option<f64>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        min_gap_mm: Option<f64>,
+    },
 }
 
 /// Root document exchanged with WASM and the web UI.
@@ -122,6 +130,23 @@ fn validate_interior_for_height(
             .map_err(SpecError::Validation)?;
             Ok(())
         }
+        InteriorSpec::ExplicitShelfHeights {
+            shelf_bottom_y_mm,
+            shelf_thickness_mm,
+            min_gap_mm,
+        } => {
+            let t =
+                shelf_thickness_mm.unwrap_or(crate::interior_shelves::DEFAULT_SHELF_THICKNESS_MM);
+            validate_positive_finite("shelf_thickness_mm", t)?;
+            crate::interior_shelves::validate_explicit_shelf_bottoms_mm(
+                inner_height_mm,
+                shelf_bottom_y_mm,
+                t,
+                *min_gap_mm,
+            )
+            .map_err(SpecError::Validation)?;
+            Ok(())
+        }
     }
 }
 
@@ -143,6 +168,8 @@ mod tests {
         include_str!("../../spec-fixtures/wardrobe-spec-v1-with-extensions.json");
     const EQUAL_SHELVES: &str =
         include_str!("../../spec-fixtures/wardrobe-spec-v1-equal-spacing-shelves.json");
+    const EXPLICIT_SHELVES: &str =
+        include_str!("../../spec-fixtures/wardrobe-spec-v1-explicit-shelf-heights.json");
 
     #[test]
     fn golden_minimal_parse_and_validate() {
@@ -220,6 +247,42 @@ mod tests {
         );
         let again = parse_wardrobe_spec_json(&serde_json::to_string(&spec).unwrap()).unwrap();
         assert_eq!(spec, again);
+    }
+
+    #[test]
+    fn interior_explicit_shelf_heights_round_trips_and_validates() {
+        let json = r#"{"version":1,"layout":{"type":"straight_run","width_mm":2400.0,"height_mm":2200.0,"depth_mm":600.0},"interior":{"type":"explicit_shelf_heights","shelf_bottom_y_mm":[400.0,1000.0,1600.0]}}"#;
+        let spec: WardrobeSpec = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            spec.interior,
+            Some(InteriorSpec::ExplicitShelfHeights {
+                shelf_bottom_y_mm: vec![400.0, 1000.0, 1600.0],
+                shelf_thickness_mm: None,
+                min_gap_mm: None,
+            })
+        );
+        validate_wardrobe_spec(&spec).unwrap();
+    }
+
+    #[test]
+    fn interior_explicit_rejects_overlap() {
+        let json = r#"{"version":1,"layout":{"type":"straight_run","width_mm":2400.0,"height_mm":2200.0,"depth_mm":600.0},"interior":{"type":"explicit_shelf_heights","shelf_bottom_y_mm":[400.0,410.0],"shelf_thickness_mm":18.0}}"#;
+        let err = parse_wardrobe_spec_json(json).unwrap_err();
+        assert!(matches!(err, SpecError::Validation(_)));
+    }
+
+    #[test]
+    fn golden_explicit_shelf_heights_fixture_parse_and_validate() {
+        let spec = parse_wardrobe_spec_json(EXPLICIT_SHELVES.trim()).unwrap();
+        assert_eq!(
+            spec.interior,
+            Some(InteriorSpec::ExplicitShelfHeights {
+                shelf_bottom_y_mm: vec![400.0, 1000.0, 1600.0],
+                shelf_thickness_mm: None,
+                min_gap_mm: None,
+            })
+        );
+        validate_wardrobe_spec(&spec).unwrap();
     }
 
     #[test]

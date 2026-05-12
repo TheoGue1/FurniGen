@@ -16,7 +16,9 @@ pub use bom::{bom_to_csv, build_bom, BomDocument, BomPartRow};
 pub use export_2d::{build_panels_dxf, build_panels_svg};
 pub use export_mesh::{preview_mesh_to_gltf, preview_mesh_to_obj, MeshExportError};
 pub use inner_volume::{inner_volume_mm, StraightRunInnerVolume};
-pub use interior_shelves::{equal_spacing_shelf_bottoms_mm, DEFAULT_SHELF_THICKNESS_MM};
+pub use interior_shelves::{
+    equal_spacing_shelf_bottoms_mm, validate_explicit_shelf_bottoms_mm, DEFAULT_SHELF_THICKNESS_MM,
+};
 pub use panels::{panel_blanks_for_spec, PanelBlank};
 pub use preview_mesh::{build_preview_mesh, PreviewMesh};
 pub use shelf_mesh::{append_shelf_bottom_face_mm, append_shelf_top_face_mm};
