@@ -1,9 +1,13 @@
-//! Shelf placement from interior spec (mm). v1: equal vertical gaps between shelf boards and inner floor/ceiling.
+//! Shelf placement from interior spec (mm): equal spacing, zones, explicit heights, golden-ratio ladders, …
 
 /// Nominal shelf thickness when JSON omits `shelf_thickness_mm` (mm).
 pub const DEFAULT_SHELF_THICKNESS_MM: f64 = 18.0;
 
 const MIN_AIR_GAP_MM: f64 = 0.01;
+
+fn golden_ratio_phi() -> f64 {
+    (1.0 + 5.0_f64.sqrt()) / 2.0
+}
 
 /// Bottom **Y** of each horizontal shelf board (mm), ordered upward.
 ///
@@ -78,6 +82,60 @@ pub fn zones_equal_fill_shelf_bottoms_mm(
     }
     let in_band = equal_spacing_shelf_bottoms_mm(band_mm, shelf_count, shelf_thickness_mm)?;
     Ok(in_band.into_iter().map(|y| y + bottom_zone_mm).collect())
+}
+
+/// Bottom **Y** of each horizontal shelf board (mm), ordered upward, from a **golden-ratio air-gap ladder**.
+///
+/// For `rungs` shelf boards there are `rungs + 1` vertical air gaps (below the first shelf, between boards,
+/// above the last). Gap *i* (0-based from the inner floor) has weight φ^i with φ = (1+√5)/2, so the bottom
+/// gap is the smallest and the top gap is the largest. Total air is `inner_height_mm - rungs * shelf_thickness_mm`;
+/// gaps are normalized to sum to that total. Fails if any gap would fall below [`MIN_AIR_GAP_MM`] or the
+/// boards do not fit.
+pub fn golden_ratio_ladder_shelf_bottoms_mm(
+    inner_height_mm: f64,
+    rungs: u32,
+    shelf_thickness_mm: f64,
+) -> Result<Vec<f64>, String> {
+    if rungs < 1 {
+        return Err("rungs must be at least 1".to_owned());
+    }
+    if !shelf_thickness_mm.is_finite() || shelf_thickness_mm <= 0.0 {
+        return Err("shelf_thickness_mm must be finite and positive".to_owned());
+    }
+    if !inner_height_mm.is_finite() || inner_height_mm <= 0.0 {
+        return Err("inner height must be finite and positive".to_owned());
+    }
+    let n = rungs as usize;
+    let num_gaps = n + 1;
+    let phi = golden_ratio_phi();
+    let mut weight_sum = 0.0;
+    let mut w = 1.0;
+    for _ in 0..num_gaps {
+        weight_sum += w;
+        w *= phi;
+    }
+    let usable = inner_height_mm - (rungs as f64) * shelf_thickness_mm;
+    if usable <= 0.0 {
+        return Err(format!(
+            "inner height {inner_height_mm} mm is too small for {rungs} shelf board(s) of {shelf_thickness_mm} mm each (need positive air)"
+        ));
+    }
+    let mut bottoms = Vec::with_capacity(n);
+    let mut y_cursor = 0.0;
+    let mut w = 1.0;
+    for i in 0..num_gaps {
+        let g = usable * w / weight_sum;
+        if g < MIN_AIR_GAP_MM {
+            return Err("golden-ratio ladder air gap would be below minimum".to_owned());
+        }
+        y_cursor += g;
+        if i < n {
+            bottoms.push(y_cursor);
+            y_cursor += shelf_thickness_mm;
+        }
+        w *= phi;
+    }
+    Ok(bottoms)
 }
 
 /// Validates user-supplied shelf bottom **Y** coordinates (mm from inner floor, ascending).
@@ -265,5 +323,52 @@ mod tests {
     #[test]
     fn explicit_rejects_top_past_inner_height() {
         assert!(validate_explicit_shelf_bottoms_mm(2200.0, &[2190.0], 18.0, None).is_err());
+    }
+
+    #[test]
+    fn golden_ratio_ladder_three_rungs_stable_positions() {
+        let h = 2200.0;
+        let t = 18.0;
+        let bottoms = golden_ratio_ladder_shelf_bottoms_mm(h, 3, t).unwrap();
+        assert_eq!(bottoms.len(), 3);
+        let expected = [226.559248114181, 611.139812028545, 1222.27962405709];
+        for (i, (&a, &e)) in bottoms.iter().zip(expected.iter()).enumerate() {
+            assert!((a - e).abs() < 1e-6, "bottom[{i}] got {a} want {e}");
+        }
+        assert!(bottoms[0] > 0.0);
+        for i in 0..bottoms.len() - 1 {
+            assert!(bottoms[i + 1] > bottoms[i] + t - 1e-6);
+        }
+        assert!(bottoms[2] + t < h - 1e-6);
+    }
+
+    #[test]
+    fn golden_ratio_ladder_consecutive_air_gaps_ratio_phi() {
+        let h = 1000.0;
+        let t = 10.0;
+        let rungs = 4u32;
+        let bottoms = golden_ratio_ladder_shelf_bottoms_mm(h, rungs, t).unwrap();
+        let phi = super::golden_ratio_phi();
+        let mut gaps = Vec::with_capacity(rungs as usize + 1);
+        gaps.push(bottoms[0]);
+        for i in 0..bottoms.len() - 1 {
+            gaps.push(bottoms[i + 1] - bottoms[i] - t);
+        }
+        gaps.push(h - bottoms[bottoms.len() - 1] - t);
+        assert_eq!(gaps.len(), rungs as usize + 1);
+        for i in 0..gaps.len() - 1 {
+            let r = gaps[i + 1] / gaps[i];
+            assert!((r - phi).abs() < 1e-9, "gap ratio {i}: {r} vs phi {phi}");
+        }
+    }
+
+    #[test]
+    fn golden_ratio_ladder_rejects_zero_rungs() {
+        assert!(golden_ratio_ladder_shelf_bottoms_mm(2200.0, 0, 18.0).is_err());
+    }
+
+    #[test]
+    fn golden_ratio_ladder_rejects_too_many_boards_for_height() {
+        assert!(golden_ratio_ladder_shelf_bottoms_mm(50.0, 10, 18.0).is_err());
     }
 }

@@ -5,7 +5,12 @@ import { wardrobeSpecSchema, type WardrobeSpec } from "./lib/spec/wardrobe-spec"
 
 type WasmStatus = "loading" | "ready" | "error";
 
-type InteriorUiMode = "none" | "equal_spacing" | "explicit_heights" | "zones_equal_fill";
+type InteriorUiMode =
+  | "none"
+  | "equal_spacing"
+  | "explicit_heights"
+  | "zones_equal_fill"
+  | "golden_ratio_ladder";
 
 function parseOptionalShelfThicknessMm(raw: string): number | undefined {
   const t = raw.trim();
@@ -60,6 +65,8 @@ export function App() {
     zones_bottom_zone_mm: 500,
     zones_top_reserve_mm: 300,
     zones_shelf_count: 3,
+    /** Horizontal shelf boards for golden-ratio ladder (φ-weighted air gaps). */
+    golden_rungs: 3,
   });
 
   useEffect(() => {
@@ -128,7 +135,13 @@ export function App() {
                     shelf_count: Math.max(1, Math.floor(dims.zones_shelf_count)),
                     ...(shelfThicknessMm !== undefined ? { shelf_thickness_mm: shelfThicknessMm } : {}),
                   }
-                : undefined;
+                : dims.interiorMode === "golden_ratio_ladder"
+                  ? {
+                      type: "golden_ratio_ladder_shelves" as const,
+                      rungs: Math.max(1, Math.floor(dims.golden_rungs)),
+                      ...(shelfThicknessMm !== undefined ? { shelf_thickness_mm: shelfThicknessMm } : {}),
+                    }
+                  : undefined;
         const spec: WardrobeSpec = {
           version: 1,
           layout: {
@@ -160,9 +173,13 @@ export function App() {
                 ? `${Math.max(1, Math.floor(dims.zones_shelf_count))} shelf boards in middle band (bottom reserve ${Math.round(dims.zones_bottom_zone_mm)} mm · top reserve ${Math.round(dims.zones_top_reserve_mm)} mm)${
                     shelfThicknessMm !== undefined ? ` · shelf ${shelfThicknessMm} mm thick` : ""
                   }`
-                : `${parseShelfBottomYListMm(dims.explicit_shelf_bottoms_y_str).length} explicit shelf bottom Y value(s)${
-                    shelfThicknessMm !== undefined ? ` · shelf ${shelfThicknessMm} mm thick` : ""
-                  }`;
+                : dims.interiorMode === "golden_ratio_ladder"
+                  ? `${Math.max(1, Math.floor(dims.golden_rungs))} shelf boards (golden-ratio ladder gaps)${
+                      shelfThicknessMm !== undefined ? ` · shelf ${shelfThicknessMm} mm thick` : ""
+                    }`
+                  : `${parseShelfBottomYListMm(dims.explicit_shelf_bottoms_y_str).length} explicit shelf bottom Y value(s)${
+                      shelfThicknessMm !== undefined ? ` · shelf ${shelfThicknessMm} mm thick` : ""
+                    }`;
         setWasmDetail(
           `WASM ${wasm.wasmVersion()} · ${Math.round(dims.width_mm)}×${Math.round(dims.height_mm)}×${Math.round(dims.depth_mm)} mm · ${interiorLabel} · WardrobeSpec v1 + preview mesh`
         );
@@ -192,6 +209,7 @@ export function App() {
     dims.zones_bottom_zone_mm,
     dims.zones_top_reserve_mm,
     dims.zones_shelf_count,
+    dims.golden_rungs,
   ]);
 
   const meshForViewer = wasmStatus === "ready" && previewMeshJson ? previewMeshJson : null;
@@ -227,6 +245,7 @@ export function App() {
               <option value="equal_spacing">Equal spacing shelves</option>
               <option value="explicit_heights">Explicit shelf bottom Y (mm)</option>
               <option value="zones_equal_fill">Zones + equal-fill (middle band)</option>
+              <option value="golden_ratio_ladder">Golden ratio ladder shelves</option>
             </select>
           </label>
           <label className="flex min-w-[7.5rem] flex-col gap-1 text-xs text-slate-400">
@@ -285,7 +304,8 @@ export function App() {
           </label>
           {(dims.interiorMode === "equal_spacing" ||
             dims.interiorMode === "explicit_heights" ||
-            dims.interiorMode === "zones_equal_fill") && (
+            dims.interiorMode === "zones_equal_fill" ||
+            dims.interiorMode === "golden_ratio_ladder") && (
             <label className="flex min-w-[10rem] flex-col gap-1 text-xs text-slate-400">
               Shelf thickness (mm, optional)
               <input
@@ -359,6 +379,27 @@ export function App() {
                 />
               </label>
             </>
+          )}
+          {dims.interiorMode === "golden_ratio_ladder" && (
+            <label className="flex min-w-[7.5rem] flex-col gap-1 text-xs text-slate-400">
+              Rungs (shelf count)
+              <input
+                data-testid="input-golden-rungs"
+                className="rounded border border-slate-600 bg-slate-900 px-2 py-1.5 text-sm text-slate-100"
+                type="number"
+                min={1}
+                max={500}
+                step={1}
+                value={dims.golden_rungs}
+                onChange={(e) => {
+                  const v = e.target.valueAsNumber;
+                  if (!Number.isFinite(v) || v < 1 || v > 500) {
+                    return;
+                  }
+                  setDims((d) => ({ ...d, golden_rungs: v }));
+                }}
+              />
+            </label>
           )}
           {dims.interiorMode === "equal_spacing" && (
             <label className="flex min-w-[7.5rem] flex-col gap-1 text-xs text-slate-400">

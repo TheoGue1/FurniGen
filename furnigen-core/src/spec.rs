@@ -35,6 +35,12 @@ pub enum InteriorSpec {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         shelf_thickness_mm: Option<f64>,
     },
+    /// `rungs` horizontal shelf boards; vertical air gaps (floor–shelves–ceiling) scale like φ^0…φ^n.
+    GoldenRatioLadderShelves {
+        rungs: u32,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        shelf_thickness_mm: Option<f64>,
+    },
 }
 
 /// Root document exchanged with WASM and the web UI.
@@ -194,6 +200,24 @@ fn validate_interior_for_height(
             .map_err(SpecError::Validation)?;
             Ok(())
         }
+        InteriorSpec::GoldenRatioLadderShelves {
+            rungs,
+            shelf_thickness_mm,
+        } => {
+            if *rungs < 1 {
+                return Err(SpecError::Validation("rungs must be at least 1".to_owned()));
+            }
+            let t =
+                shelf_thickness_mm.unwrap_or(crate::interior_shelves::DEFAULT_SHELF_THICKNESS_MM);
+            validate_positive_finite("shelf_thickness_mm", t)?;
+            crate::interior_shelves::golden_ratio_ladder_shelf_bottoms_mm(
+                inner_height_mm,
+                *rungs,
+                t,
+            )
+            .map_err(SpecError::Validation)?;
+            Ok(())
+        }
     }
 }
 
@@ -219,6 +243,8 @@ mod tests {
         include_str!("../../spec-fixtures/wardrobe-spec-v1-explicit-shelf-heights.json");
     const ZONES_EQUAL_FILL: &str =
         include_str!("../../spec-fixtures/wardrobe-spec-v1-zones-equal-fill-shelves.json");
+    const GOLDEN_RATIO_LADDER: &str =
+        include_str!("../../spec-fixtures/wardrobe-spec-v1-golden-ratio-ladder-shelves.json");
 
     #[test]
     fn golden_minimal_parse_and_validate() {
@@ -366,6 +392,40 @@ mod tests {
                 bottom_zone_mm: 500.0,
                 top_reserve_mm: 300.0,
                 shelf_count: 3,
+                shelf_thickness_mm: None,
+            })
+        );
+        validate_wardrobe_spec(&spec).unwrap();
+    }
+
+    #[test]
+    fn interior_golden_ratio_ladder_round_trips_and_validates() {
+        let json = r#"{"version":1,"layout":{"type":"straight_run","width_mm":2400.0,"height_mm":2200.0,"depth_mm":600.0},"interior":{"type":"golden_ratio_ladder_shelves","rungs":3}}"#;
+        let spec: WardrobeSpec = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            spec.interior,
+            Some(InteriorSpec::GoldenRatioLadderShelves {
+                rungs: 3,
+                shelf_thickness_mm: None,
+            })
+        );
+        validate_wardrobe_spec(&spec).unwrap();
+    }
+
+    #[test]
+    fn interior_golden_ratio_ladder_rejects_zero_rungs() {
+        let json = r#"{"version":1,"layout":{"type":"straight_run","width_mm":2400.0,"height_mm":2200.0,"depth_mm":600.0},"interior":{"type":"golden_ratio_ladder_shelves","rungs":0}}"#;
+        let err = parse_wardrobe_spec_json(json).unwrap_err();
+        assert!(matches!(err, SpecError::Validation(_)));
+    }
+
+    #[test]
+    fn golden_ratio_ladder_fixture_parse_and_validate() {
+        let spec = parse_wardrobe_spec_json(GOLDEN_RATIO_LADDER.trim()).unwrap();
+        assert_eq!(
+            spec.interior,
+            Some(InteriorSpec::GoldenRatioLadderShelves {
+                rungs: 3,
                 shelf_thickness_mm: None,
             })
         );

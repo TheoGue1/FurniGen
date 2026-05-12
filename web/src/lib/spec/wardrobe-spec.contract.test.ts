@@ -66,6 +66,24 @@ describe("WardrobeSpec Zod contract (golden fixtures)", () => {
     });
   });
 
+  it("accepts golden golden_ratio_ladder fixture", () => {
+    const raw = fixture("wardrobe-spec-v1-golden-ratio-ladder-shelves.json");
+    const spec = parseWardrobeSpecJson(raw);
+    expect(spec.interior).toEqual({
+      type: "golden_ratio_ladder_shelves",
+      rungs: 3,
+    });
+  });
+
+  it("rejects golden_ratio_ladder_shelves with rungs below 1", () => {
+    const raw = JSON.stringify({
+      version: 1,
+      layout: { type: "straight_run", width_mm: 2400, height_mm: 2200, depth_mm: 600 },
+      interior: { type: "golden_ratio_ladder_shelves", rungs: 0 },
+    });
+    expect(() => parseWardrobeSpecJson(raw)).toThrow();
+  });
+
   it("rejects zones_equal_fill_shelves with negative bottom_zone_mm", () => {
     const raw = JSON.stringify({
       version: 1,

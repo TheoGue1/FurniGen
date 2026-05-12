@@ -139,6 +139,16 @@ mod tests {
     }
 
     #[test]
+    fn svg_includes_shelf_rectangles_when_golden_ratio_ladder_interior() {
+        const FIXTURE: &str =
+            include_str!("../../spec-fixtures/wardrobe-spec-v1-golden-ratio-ladder-shelves.json");
+        let spec = parse_wardrobe_spec_json(FIXTURE.trim()).unwrap();
+        let svg = build_panels_svg(&spec);
+        assert!(svg.contains("id=\"shelf_01\""));
+        assert!(svg.contains("id=\"shelf_03\""));
+    }
+
+    #[test]
     fn dxf_has_entities_and_eof() {
         const FIXTURE: &str = include_str!("../../spec-fixtures/wardrobe-spec-v1-minimal.json");
         let spec = parse_wardrobe_spec_json(FIXTURE.trim()).unwrap();
