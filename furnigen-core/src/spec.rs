@@ -141,6 +141,8 @@ mod tests {
         include_str!("../../spec-fixtures/wardrobe-spec-v1-invalid-depth.json");
     const WITH_EXT: &str =
         include_str!("../../spec-fixtures/wardrobe-spec-v1-with-extensions.json");
+    const EQUAL_SHELVES: &str =
+        include_str!("../../spec-fixtures/wardrobe-spec-v1-equal-spacing-shelves.json");
 
     #[test]
     fn golden_minimal_parse_and_validate() {
@@ -194,6 +196,19 @@ mod tests {
     fn golden_invalid_depth_fails_validation() {
         let err = parse_wardrobe_spec_json(INVALID_DEPTH.trim()).unwrap_err();
         assert!(matches!(err, SpecError::Validation(_)));
+    }
+
+    #[test]
+    fn golden_equal_spacing_shelves_fixture_parse_and_validate() {
+        let spec = parse_wardrobe_spec_json(EQUAL_SHELVES.trim()).unwrap();
+        assert_eq!(
+            spec.interior,
+            Some(InteriorSpec::EqualSpacingShelves {
+                shelf_count: 4,
+                shelf_thickness_mm: None,
+            })
+        );
+        validate_wardrobe_spec(&spec).unwrap();
     }
 
     #[test]

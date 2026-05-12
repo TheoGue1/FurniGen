@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "layout": {
+    "type": "straight_run",
+    "width_mm": 2400,
+    "height_mm": 2200,
+    "depth_mm": 600
+  },
+  "interior": {
+    "type": "equal_spacing_shelves",
+    "shelf_count": 4
+  }
+}

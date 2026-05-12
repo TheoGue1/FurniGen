@@ -109,6 +109,16 @@ mod tests {
     }
 
     #[test]
+    fn svg_includes_shelf_rectangles_when_equal_spacing_interior() {
+        const FIXTURE: &str =
+            include_str!("../../spec-fixtures/wardrobe-spec-v1-equal-spacing-shelves.json");
+        let spec = parse_wardrobe_spec_json(FIXTURE.trim()).unwrap();
+        let svg = build_panels_svg(&spec);
+        assert!(svg.contains("id=\"shelf_01\""));
+        assert!(svg.contains("id=\"shelf_04\""));
+    }
+
+    #[test]
     fn dxf_has_entities_and_eof() {
         const FIXTURE: &str = include_str!("../../spec-fixtures/wardrobe-spec-v1-minimal.json");
         let spec = parse_wardrobe_spec_json(FIXTURE.trim()).unwrap();

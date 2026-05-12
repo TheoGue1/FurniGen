@@ -61,4 +61,25 @@ mod tests {
     fn rejects_zero_shelves() {
         assert!(equal_spacing_shelf_bottoms_mm(2200.0, 0, 18.0).is_err());
     }
+
+    #[test]
+    fn four_shelves_have_equal_air_gaps_and_non_overlapping_tops() {
+        let h = 2200.0;
+        let t = 18.0;
+        let n = 4u32;
+        let bottoms = equal_spacing_shelf_bottoms_mm(h, n, t).unwrap();
+        assert_eq!(bottoms.len(), 4);
+        let g = (h - f64::from(n) * t) / (f64::from(n) + 1.0);
+        for (i, &yb) in bottoms.iter().enumerate() {
+            let expected = g + f64::from(i as u32) * (g + t);
+            assert!((yb - expected).abs() < 1e-6, "y[{i}]");
+        }
+        for i in 0..bottoms.len() - 1 {
+            let gap_mid = bottoms[i] + t + (bottoms[i + 1] - (bottoms[i] + t)) / 2.0;
+            assert!(gap_mid > bottoms[i] + t - 1e-6);
+            assert!(gap_mid < bottoms[i + 1] + 1e-6);
+        }
+        assert!(bottoms[0] > 0.0);
+        assert!(bottoms[3] + t < h);
+    }
 }

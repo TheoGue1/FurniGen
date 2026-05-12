@@ -139,4 +139,17 @@ mod tests {
         let gltf = build_wardrobe_preview_gltf(j).unwrap();
         assert!(gltf.contains("\"asset\"") && gltf.contains("base64,"));
     }
+
+    #[test]
+    fn equal_spacing_interior_bom_and_svg_include_shelves() {
+        const FIXTURE: &str =
+            include_str!("../../spec-fixtures/wardrobe-spec-v1-equal-spacing-shelves.json");
+        let j = FIXTURE.trim();
+        validate_wardrobe_spec_json(j).unwrap();
+        let bom = build_wardrobe_bom_json(j).unwrap();
+        assert!(bom.contains("shelf_01"));
+        assert!(bom.contains("shelf_04"));
+        let svg = build_wardrobe_panels_svg(j).unwrap();
+        assert!(svg.contains("id=\"shelf_01\""));
+    }
 }

@@ -24,6 +24,24 @@ describe("WardrobeSpec Zod contract (golden fixtures)", () => {
     expect(spec.interior).toBeUndefined();
   });
 
+  it("accepts golden equal_spacing_shelves fixture", () => {
+    const raw = fixture("wardrobe-spec-v1-equal-spacing-shelves.json");
+    const spec = parseWardrobeSpecJson(raw);
+    expect(spec.interior).toEqual({
+      type: "equal_spacing_shelves",
+      shelf_count: 4,
+    });
+  });
+
+  it("rejects equal_spacing_shelves with shelf_count below 1", () => {
+    const raw = JSON.stringify({
+      version: 1,
+      layout: { type: "straight_run", width_mm: 1000, height_mm: 2200, depth_mm: 600 },
+      interior: { type: "equal_spacing_shelves", shelf_count: 0 },
+    });
+    expect(() => parseWardrobeSpecJson(raw)).toThrow();
+  });
+
   it("accepts equal_spacing_shelves interior", () => {
     const raw = JSON.stringify({
       version: 1,
