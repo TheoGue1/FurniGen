@@ -5,7 +5,7 @@ import { wardrobeSpecSchema, type WardrobeSpec } from "./lib/spec/wardrobe-spec"
 
 type WasmStatus = "loading" | "ready" | "error";
 
-type InteriorUiMode = "none" | "equal_spacing" | "explicit_heights";
+type InteriorUiMode = "none" | "equal_spacing" | "explicit_heights" | "zones_equal_fill";
 
 function parseOptionalShelfThicknessMm(raw: string): number | undefined {
   const t = raw.trim();
@@ -56,6 +56,10 @@ export function App() {
     /** For explicit shelf mode: one Y per line or comma-separated (mm from inner floor, ascending). */
     explicit_shelf_bottoms_y_str: "400\n1000\n1600",
     explicit_min_gap_mm_str: "",
+    /** Reserved from inner floor / ceiling (mm) for zones + equal-fill mode. */
+    zones_bottom_zone_mm: 500,
+    zones_top_reserve_mm: 300,
+    zones_shelf_count: 3,
   });
 
   useEffect(() => {
@@ -116,7 +120,15 @@ export function App() {
                     ...(minGapMm !== undefined ? { min_gap_mm: minGapMm } : {}),
                   };
                 })()
-              : undefined;
+              : dims.interiorMode === "zones_equal_fill"
+                ? {
+                    type: "zones_equal_fill_shelves" as const,
+                    bottom_zone_mm: Math.max(0, dims.zones_bottom_zone_mm),
+                    top_reserve_mm: Math.max(0, dims.zones_top_reserve_mm),
+                    shelf_count: Math.max(1, Math.floor(dims.zones_shelf_count)),
+                    ...(shelfThicknessMm !== undefined ? { shelf_thickness_mm: shelfThicknessMm } : {}),
+                  }
+                : undefined;
         const spec: WardrobeSpec = {
           version: 1,
           layout: {
@@ -144,9 +156,13 @@ export function App() {
               ? `${Math.max(1, Math.floor(dims.shelf_count))} shelf boards (equal spacing)${
                   shelfThicknessMm !== undefined ? ` · shelf ${shelfThicknessMm} mm thick` : ""
                 }`
-              : `${parseShelfBottomYListMm(dims.explicit_shelf_bottoms_y_str).length} explicit shelf bottom Y value(s)${
-                  shelfThicknessMm !== undefined ? ` · shelf ${shelfThicknessMm} mm thick` : ""
-                }`;
+              : dims.interiorMode === "zones_equal_fill"
+                ? `${Math.max(1, Math.floor(dims.zones_shelf_count))} shelf boards in middle band (bottom reserve ${Math.round(dims.zones_bottom_zone_mm)} mm · top reserve ${Math.round(dims.zones_top_reserve_mm)} mm)${
+                    shelfThicknessMm !== undefined ? ` · shelf ${shelfThicknessMm} mm thick` : ""
+                  }`
+                : `${parseShelfBottomYListMm(dims.explicit_shelf_bottoms_y_str).length} explicit shelf bottom Y value(s)${
+                    shelfThicknessMm !== undefined ? ` · shelf ${shelfThicknessMm} mm thick` : ""
+                  }`;
         setWasmDetail(
           `WASM ${wasm.wasmVersion()} · ${Math.round(dims.width_mm)}×${Math.round(dims.height_mm)}×${Math.round(dims.depth_mm)} mm · ${interiorLabel} · WardrobeSpec v1 + preview mesh`
         );
@@ -173,6 +189,9 @@ export function App() {
     dims.shelf_thickness_mm_str,
     dims.explicit_shelf_bottoms_y_str,
     dims.explicit_min_gap_mm_str,
+    dims.zones_bottom_zone_mm,
+    dims.zones_top_reserve_mm,
+    dims.zones_shelf_count,
   ]);
 
   const meshForViewer = wasmStatus === "ready" && previewMeshJson ? previewMeshJson : null;
@@ -207,6 +226,7 @@ export function App() {
               <option value="none">None</option>
               <option value="equal_spacing">Equal spacing shelves</option>
               <option value="explicit_heights">Explicit shelf bottom Y (mm)</option>
+              <option value="zones_equal_fill">Zones + equal-fill (middle band)</option>
             </select>
           </label>
           <label className="flex min-w-[7.5rem] flex-col gap-1 text-xs text-slate-400">
@@ -263,7 +283,9 @@ export function App() {
               }}
             />
           </label>
-          {(dims.interiorMode === "equal_spacing" || dims.interiorMode === "explicit_heights") && (
+          {(dims.interiorMode === "equal_spacing" ||
+            dims.interiorMode === "explicit_heights" ||
+            dims.interiorMode === "zones_equal_fill") && (
             <label className="flex min-w-[10rem] flex-col gap-1 text-xs text-slate-400">
               Shelf thickness (mm, optional)
               <input
@@ -278,6 +300,65 @@ export function App() {
                 }}
               />
             </label>
+          )}
+          {dims.interiorMode === "zones_equal_fill" && (
+            <>
+              <label className="flex min-w-[8rem] flex-col gap-1 text-xs text-slate-400">
+                Bottom reserve (mm)
+                <input
+                  data-testid="input-zones-bottom-mm"
+                  className="rounded border border-slate-600 bg-slate-900 px-2 py-1.5 text-sm text-slate-100"
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={dims.zones_bottom_zone_mm}
+                  onChange={(e) => {
+                    const v = e.target.valueAsNumber;
+                    if (!Number.isFinite(v) || v < 0) {
+                      return;
+                    }
+                    setDims((d) => ({ ...d, zones_bottom_zone_mm: v }));
+                  }}
+                />
+              </label>
+              <label className="flex min-w-[8rem] flex-col gap-1 text-xs text-slate-400">
+                Top reserve (mm)
+                <input
+                  data-testid="input-zones-top-mm"
+                  className="rounded border border-slate-600 bg-slate-900 px-2 py-1.5 text-sm text-slate-100"
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={dims.zones_top_reserve_mm}
+                  onChange={(e) => {
+                    const v = e.target.valueAsNumber;
+                    if (!Number.isFinite(v) || v < 0) {
+                      return;
+                    }
+                    setDims((d) => ({ ...d, zones_top_reserve_mm: v }));
+                  }}
+                />
+              </label>
+              <label className="flex min-w-[7.5rem] flex-col gap-1 text-xs text-slate-400">
+                Shelves in band
+                <input
+                  data-testid="input-zones-shelf-count"
+                  className="rounded border border-slate-600 bg-slate-900 px-2 py-1.5 text-sm text-slate-100"
+                  type="number"
+                  min={1}
+                  max={500}
+                  step={1}
+                  value={dims.zones_shelf_count}
+                  onChange={(e) => {
+                    const v = e.target.valueAsNumber;
+                    if (!Number.isFinite(v) || v < 1 || v > 500) {
+                      return;
+                    }
+                    setDims((d) => ({ ...d, zones_shelf_count: v }));
+                  }}
+                />
+              </label>
+            </>
           )}
           {dims.interiorMode === "equal_spacing" && (
             <label className="flex min-w-[7.5rem] flex-col gap-1 text-xs text-slate-400">

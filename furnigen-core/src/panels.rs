@@ -3,7 +3,8 @@
 use serde::Serialize;
 
 use crate::interior_shelves::{
-    equal_spacing_shelf_bottoms_mm, validate_explicit_shelf_bottoms_mm, DEFAULT_SHELF_THICKNESS_MM,
+    equal_spacing_shelf_bottoms_mm, validate_explicit_shelf_bottoms_mm,
+    zones_equal_fill_shelf_bottoms_mm, DEFAULT_SHELF_THICKNESS_MM,
 };
 use crate::{InteriorSpec, LayoutSpec, WardrobeSpec};
 
@@ -44,6 +45,22 @@ pub fn panel_blanks_for_spec(spec: &WardrobeSpec) -> Vec<PanelBlank> {
                         let t = shelf_thickness_mm.unwrap_or(DEFAULT_SHELF_THICKNESS_MM);
                         validate_explicit_shelf_bottoms_mm(*h, shelf_bottom_y_mm, t, *min_gap_mm)
                             .ok()
+                    }
+                    InteriorSpec::ZonesEqualFillShelves {
+                        bottom_zone_mm,
+                        top_reserve_mm,
+                        shelf_count,
+                        shelf_thickness_mm,
+                    } => {
+                        let t = shelf_thickness_mm.unwrap_or(DEFAULT_SHELF_THICKNESS_MM);
+                        zones_equal_fill_shelf_bottoms_mm(
+                            *h,
+                            *bottom_zone_mm,
+                            *top_reserve_mm,
+                            *shelf_count,
+                            t,
+                        )
+                        .ok()
                     }
                     InteriorSpec::Stub => None,
                 };

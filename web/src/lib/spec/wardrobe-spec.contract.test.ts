@@ -55,6 +55,31 @@ describe("WardrobeSpec Zod contract (golden fixtures)", () => {
     expect(() => parseWardrobeSpecJson(raw)).toThrow();
   });
 
+  it("accepts golden zones_equal_fill_shelves fixture", () => {
+    const raw = fixture("wardrobe-spec-v1-zones-equal-fill-shelves.json");
+    const spec = parseWardrobeSpecJson(raw);
+    expect(spec.interior).toEqual({
+      type: "zones_equal_fill_shelves",
+      bottom_zone_mm: 500,
+      top_reserve_mm: 300,
+      shelf_count: 3,
+    });
+  });
+
+  it("rejects zones_equal_fill_shelves with negative bottom_zone_mm", () => {
+    const raw = JSON.stringify({
+      version: 1,
+      layout: { type: "straight_run", width_mm: 2400, height_mm: 2200, depth_mm: 600 },
+      interior: {
+        type: "zones_equal_fill_shelves",
+        bottom_zone_mm: -1,
+        top_reserve_mm: 0,
+        shelf_count: 1,
+      },
+    });
+    expect(() => parseWardrobeSpecJson(raw)).toThrow();
+  });
+
   it("accepts golden explicit_shelf_heights fixture", () => {
     const raw = fixture("wardrobe-spec-v1-explicit-shelf-heights.json");
     const spec = parseWardrobeSpecJson(raw);

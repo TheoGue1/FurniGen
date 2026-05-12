@@ -3,7 +3,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::interior_shelves::{
-    equal_spacing_shelf_bottoms_mm, validate_explicit_shelf_bottoms_mm, DEFAULT_SHELF_THICKNESS_MM,
+    equal_spacing_shelf_bottoms_mm, validate_explicit_shelf_bottoms_mm,
+    zones_equal_fill_shelf_bottoms_mm, DEFAULT_SHELF_THICKNESS_MM,
 };
 use crate::shelf_mesh::{append_shelf_bottom_face_mm, append_shelf_top_face_mm};
 use crate::{InteriorSpec, LayoutSpec, WardrobeSpec};
@@ -62,6 +63,24 @@ fn append_interior_shelf_quads(
                 shelf_bottom_y_mm,
                 t,
                 *min_gap_mm,
+            ) {
+                Ok(b) => (b, t),
+                Err(_) => return,
+            }
+        }
+        InteriorSpec::ZonesEqualFillShelves {
+            bottom_zone_mm,
+            top_reserve_mm,
+            shelf_count,
+            shelf_thickness_mm,
+        } => {
+            let t = shelf_thickness_mm.unwrap_or(DEFAULT_SHELF_THICKNESS_MM);
+            match zones_equal_fill_shelf_bottoms_mm(
+                inner_height_mm,
+                *bottom_zone_mm,
+                *top_reserve_mm,
+                *shelf_count,
+                t,
             ) {
                 Ok(b) => (b, t),
                 Err(_) => return,
@@ -182,6 +201,15 @@ mod tests {
     #[test]
     fn straight_run_with_equal_spacing_shelves_adds_vertices() {
         let json = r#"{"version":1,"layout":{"type":"straight_run","width_mm":2400.0,"height_mm":2200.0,"depth_mm":600.0},"interior":{"type":"equal_spacing_shelves","shelf_count":3}}"#;
+        let spec = parse_wardrobe_spec_json(json.trim()).unwrap();
+        let mesh = build_preview_mesh(&spec);
+        assert!(mesh.positions.len() > 60);
+        assert!(mesh.indices.len() > 30);
+    }
+
+    #[test]
+    fn straight_run_with_zones_equal_fill_shelves_adds_vertices() {
+        let json = r#"{"version":1,"layout":{"type":"straight_run","width_mm":2400.0,"height_mm":2200.0,"depth_mm":600.0},"interior":{"type":"zones_equal_fill_shelves","bottom_zone_mm":500.0,"top_reserve_mm":300.0,"shelf_count":3}}"#;
         let spec = parse_wardrobe_spec_json(json.trim()).unwrap();
         let mesh = build_preview_mesh(&spec);
         assert!(mesh.positions.len() > 60);

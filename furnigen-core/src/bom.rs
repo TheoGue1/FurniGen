@@ -100,4 +100,14 @@ mod tests {
         assert!(bom.parts.iter().any(|p| p.id == "shelf_01"));
         assert!(bom.parts.iter().any(|p| p.id == "shelf_02"));
     }
+
+    #[test]
+    fn bom_includes_shelf_rows_when_interior_zones_equal_fill() {
+        let json = r#"{"version":1,"layout":{"type":"straight_run","width_mm":2400.0,"height_mm":2200.0,"depth_mm":600.0},"interior":{"type":"zones_equal_fill_shelves","bottom_zone_mm":500.0,"top_reserve_mm":300.0,"shelf_count":3}}"#;
+        let spec = parse_wardrobe_spec_json(json).unwrap();
+        let bom = build_bom(&spec);
+        assert_eq!(bom.parts.len(), 8);
+        assert!(bom.parts.iter().any(|p| p.id == "shelf_01"));
+        assert!(bom.parts.iter().any(|p| p.id == "shelf_03"));
+    }
 }

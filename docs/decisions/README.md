@@ -10,3 +10,4 @@ Short architecture decision records (ADRs) for FurniGen. Convention and agent wo
 | [0004](0004-wardrobe-spec-json-v1.md) | WardrobeSpec JSON contract v1 | accepted |
 | [0005](0005-export-roadmap-phase-order.md) | Export roadmap phase order (BOM → 2D → mesh) | accepted |
 | [0006](0006-interior-explicit-shelf-heights.md) | Interior explicit shelf bottom Y list | accepted |
+| [0007](0007-interior-zones-equal-fill-shelves.md) | Interior zones + equal-fill shelves in middle band | accepted |

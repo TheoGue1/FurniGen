@@ -27,6 +27,14 @@ pub enum InteriorSpec {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         min_gap_mm: Option<f64>,
     },
+    /// Equal vertical gaps for `shelf_count` boards, but only inside the middle band between reserved bottom/top zones (mm).
+    ZonesEqualFillShelves {
+        bottom_zone_mm: f64,
+        top_reserve_mm: f64,
+        shelf_count: u32,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        shelf_thickness_mm: Option<f64>,
+    },
 }
 
 /// Root document exchanged with WASM and the web UI.
@@ -147,6 +155,45 @@ fn validate_interior_for_height(
             .map_err(SpecError::Validation)?;
             Ok(())
         }
+        InteriorSpec::ZonesEqualFillShelves {
+            bottom_zone_mm,
+            top_reserve_mm,
+            shelf_count,
+            shelf_thickness_mm,
+        } => {
+            if *shelf_count < 1 {
+                return Err(SpecError::Validation(
+                    "shelf_count must be at least 1".to_owned(),
+                ));
+            }
+            let t =
+                shelf_thickness_mm.unwrap_or(crate::interior_shelves::DEFAULT_SHELF_THICKNESS_MM);
+            validate_positive_finite("shelf_thickness_mm", t)?;
+            if !bottom_zone_mm.is_finite() || *bottom_zone_mm < 0.0 {
+                return Err(SpecError::Validation(
+                    "bottom_zone_mm must be finite and non-negative".to_owned(),
+                ));
+            }
+            if !top_reserve_mm.is_finite() || *top_reserve_mm < 0.0 {
+                return Err(SpecError::Validation(
+                    "top_reserve_mm must be finite and non-negative".to_owned(),
+                ));
+            }
+            if *bottom_zone_mm + *top_reserve_mm >= inner_height_mm {
+                return Err(SpecError::Validation(format!(
+                    "bottom_zone_mm ({bottom_zone_mm}) + top_reserve_mm ({top_reserve_mm}) must be strictly less than inner height ({inner_height_mm} mm)"
+                )));
+            }
+            crate::interior_shelves::zones_equal_fill_shelf_bottoms_mm(
+                inner_height_mm,
+                *bottom_zone_mm,
+                *top_reserve_mm,
+                *shelf_count,
+                t,
+            )
+            .map_err(SpecError::Validation)?;
+            Ok(())
+        }
     }
 }
 
@@ -170,6 +217,8 @@ mod tests {
         include_str!("../../spec-fixtures/wardrobe-spec-v1-equal-spacing-shelves.json");
     const EXPLICIT_SHELVES: &str =
         include_str!("../../spec-fixtures/wardrobe-spec-v1-explicit-shelf-heights.json");
+    const ZONES_EQUAL_FILL: &str =
+        include_str!("../../spec-fixtures/wardrobe-spec-v1-zones-equal-fill-shelves.json");
 
     #[test]
     fn golden_minimal_parse_and_validate() {
@@ -280,6 +329,44 @@ mod tests {
                 shelf_bottom_y_mm: vec![400.0, 1000.0, 1600.0],
                 shelf_thickness_mm: None,
                 min_gap_mm: None,
+            })
+        );
+        validate_wardrobe_spec(&spec).unwrap();
+    }
+
+    #[test]
+    fn interior_zones_equal_fill_round_trips_and_validates() {
+        let json = r#"{"version":1,"layout":{"type":"straight_run","width_mm":2400.0,"height_mm":2200.0,"depth_mm":600.0},"interior":{"type":"zones_equal_fill_shelves","bottom_zone_mm":500.0,"top_reserve_mm":300.0,"shelf_count":3}}"#;
+        let spec: WardrobeSpec = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            spec.interior,
+            Some(InteriorSpec::ZonesEqualFillShelves {
+                bottom_zone_mm: 500.0,
+                top_reserve_mm: 300.0,
+                shelf_count: 3,
+                shelf_thickness_mm: None,
+            })
+        );
+        validate_wardrobe_spec(&spec).unwrap();
+    }
+
+    #[test]
+    fn interior_zones_equal_fill_rejects_zones_consuming_height() {
+        let json = r#"{"version":1,"layout":{"type":"straight_run","width_mm":1000.0,"height_mm":1000.0,"depth_mm":400.0},"interior":{"type":"zones_equal_fill_shelves","bottom_zone_mm":600.0,"top_reserve_mm":500.0,"shelf_count":1}}"#;
+        let err = parse_wardrobe_spec_json(json).unwrap_err();
+        assert!(matches!(err, SpecError::Validation(_)));
+    }
+
+    #[test]
+    fn golden_zones_equal_fill_fixture_parse_and_validate() {
+        let spec = parse_wardrobe_spec_json(ZONES_EQUAL_FILL.trim()).unwrap();
+        assert_eq!(
+            spec.interior,
+            Some(InteriorSpec::ZonesEqualFillShelves {
+                bottom_zone_mm: 500.0,
+                top_reserve_mm: 300.0,
+                shelf_count: 3,
+                shelf_thickness_mm: None,
             })
         );
         validate_wardrobe_spec(&spec).unwrap();

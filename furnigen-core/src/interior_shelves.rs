@@ -43,6 +43,43 @@ pub fn equal_spacing_shelf_bottoms_mm(
     Ok(out)
 }
 
+/// Bottom **Y** of each horizontal shelf board (mm), ordered upward, with equal air gaps **only inside the middle band**.
+///
+/// The band is the open vertical interval `(bottom_zone_mm, inner_height_mm - top_reserve_mm)` in inner coordinates.
+/// `bottom_zone_mm` and `top_reserve_mm` are reserved measured from the inner floor and inner ceiling respectively
+/// (non-negative; their sum must be strictly less than `inner_height_mm`). Shelf boards of thickness
+/// `shelf_thickness_mm` never intrude into the reserved bands: there are `shelf_count + 1` equal air gaps spanning
+/// the band (below the first shelf, between boards, above the last shelf), same rule as [`equal_spacing_shelf_bottoms_mm`]
+/// but with effective inner height `inner_height_mm - bottom_zone_mm - top_reserve_mm`.
+pub fn zones_equal_fill_shelf_bottoms_mm(
+    inner_height_mm: f64,
+    bottom_zone_mm: f64,
+    top_reserve_mm: f64,
+    shelf_count: u32,
+    shelf_thickness_mm: f64,
+) -> Result<Vec<f64>, String> {
+    if shelf_count < 1 {
+        return Err("shelf_count must be at least 1".to_owned());
+    }
+    if !bottom_zone_mm.is_finite() || bottom_zone_mm < 0.0 {
+        return Err("bottom_zone_mm must be finite and non-negative".to_owned());
+    }
+    if !top_reserve_mm.is_finite() || top_reserve_mm < 0.0 {
+        return Err("top_reserve_mm must be finite and non-negative".to_owned());
+    }
+    if !inner_height_mm.is_finite() || inner_height_mm <= 0.0 {
+        return Err("inner height must be finite and positive".to_owned());
+    }
+    let band_mm = inner_height_mm - bottom_zone_mm - top_reserve_mm;
+    if band_mm <= 0.0 {
+        return Err(format!(
+            "bottom_zone_mm ({bottom_zone_mm}) + top_reserve_mm ({top_reserve_mm}) must be strictly less than inner height ({inner_height_mm} mm) so the middle band has positive height"
+        ));
+    }
+    let in_band = equal_spacing_shelf_bottoms_mm(band_mm, shelf_count, shelf_thickness_mm)?;
+    Ok(in_band.into_iter().map(|y| y + bottom_zone_mm).collect())
+}
+
 /// Validates user-supplied shelf bottom **Y** coordinates (mm from inner floor, ascending).
 ///
 /// Rules:
@@ -157,6 +194,34 @@ mod tests {
         }
         assert!(bottoms[0] > 0.0);
         assert!(bottoms[3] + t < h);
+    }
+
+    #[test]
+    fn zones_equal_fill_matches_band_subtraction() {
+        let h = 2200.0;
+        let bottom_z = 500.0;
+        let top_r = 300.0;
+        let band = h - bottom_z - top_r;
+        let t = 18.0;
+        let n = 3u32;
+        let zoned = zones_equal_fill_shelf_bottoms_mm(h, bottom_z, top_r, n, t).unwrap();
+        let in_band = equal_spacing_shelf_bottoms_mm(band, n, t).unwrap();
+        assert_eq!(zoned.len(), in_band.len());
+        for (a, b) in zoned.iter().zip(in_band.iter()) {
+            assert!((a - (b + bottom_z)).abs() < 1e-9);
+        }
+        assert!(zoned[0] > bottom_z);
+        assert!(zoned[n as usize - 1] + t < h - top_r);
+    }
+
+    #[test]
+    fn zones_equal_fill_rejects_zones_that_consume_full_height() {
+        assert!(zones_equal_fill_shelf_bottoms_mm(2200.0, 1000.0, 1200.0, 1, 18.0).is_err());
+    }
+
+    #[test]
+    fn zones_equal_fill_rejects_negative_zone() {
+        assert!(zones_equal_fill_shelf_bottoms_mm(2200.0, -1.0, 0.0, 1, 18.0).is_err());
     }
 
     #[test]

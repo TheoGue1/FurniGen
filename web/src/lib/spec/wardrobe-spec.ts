@@ -27,6 +27,13 @@ export const interiorSpecSchema = z.discriminatedUnion("type", [
     shelf_thickness_mm: z.number().finite().positive().optional(),
     min_gap_mm: z.number().finite().nonnegative().optional(),
   }),
+  z.object({
+    type: z.literal("zones_equal_fill_shelves"),
+    bottom_zone_mm: z.number().finite().nonnegative(),
+    top_reserve_mm: z.number().finite().nonnegative(),
+    shelf_count: z.number().int().min(1).max(500),
+    shelf_thickness_mm: z.number().finite().positive().optional(),
+  }),
 ]);
 
 export const wardrobeSpecSchema = z.object({
