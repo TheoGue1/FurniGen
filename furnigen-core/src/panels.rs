@@ -4,6 +4,7 @@ use serde::Serialize;
 
 use crate::interior_shelves::{
     equal_spacing_shelf_bottoms_mm, golden_ratio_ladder_shelf_bottoms_mm,
+    max_shelves_min_segment_shelf_bottoms_mm, two_tier_rhythm_shelf_bottoms_mm,
     validate_explicit_shelf_bottoms_mm, zones_equal_fill_shelf_bottoms_mm,
     DEFAULT_SHELF_THICKNESS_MM,
 };
@@ -69,6 +70,42 @@ pub fn panel_blanks_for_spec(spec: &WardrobeSpec) -> Vec<PanelBlank> {
                     } => {
                         let t = shelf_thickness_mm.unwrap_or(DEFAULT_SHELF_THICKNESS_MM);
                         golden_ratio_ladder_shelf_bottoms_mm(*h, *rungs, t).ok()
+                    }
+                    InteriorSpec::TwoTierRhythmShelves {
+                        transition_y_mm,
+                        gap_lower_mm,
+                        gap_upper_mm,
+                        top_reserve_mm,
+                        shelf_thickness_mm,
+                    } => {
+                        let t = shelf_thickness_mm.unwrap_or(DEFAULT_SHELF_THICKNESS_MM);
+                        two_tier_rhythm_shelf_bottoms_mm(
+                            *h,
+                            *top_reserve_mm,
+                            *transition_y_mm,
+                            *gap_lower_mm,
+                            *gap_upper_mm,
+                            t,
+                        )
+                        .ok()
+                    }
+                    InteriorSpec::MaxShelvesMinSegmentShelves {
+                        min_vertical_segment_mm,
+                        bottom_reserve_mm,
+                        top_reserve_mm,
+                        shelf_count,
+                        shelf_thickness_mm,
+                    } => {
+                        let t = shelf_thickness_mm.unwrap_or(DEFAULT_SHELF_THICKNESS_MM);
+                        max_shelves_min_segment_shelf_bottoms_mm(
+                            *h,
+                            *bottom_reserve_mm,
+                            *top_reserve_mm,
+                            *min_vertical_segment_mm,
+                            t,
+                            *shelf_count,
+                        )
+                        .ok()
                     }
                     InteriorSpec::Stub => None,
                 };

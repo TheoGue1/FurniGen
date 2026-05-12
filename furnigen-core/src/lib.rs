@@ -18,8 +18,9 @@ pub use export_mesh::{preview_mesh_to_gltf, preview_mesh_to_obj, MeshExportError
 pub use inner_volume::{inner_volume_mm, StraightRunInnerVolume};
 pub use interior_shelves::{
     equal_spacing_shelf_bottoms_mm, golden_ratio_ladder_shelf_bottoms_mm,
-    validate_explicit_shelf_bottoms_mm, zones_equal_fill_shelf_bottoms_mm,
-    DEFAULT_SHELF_THICKNESS_MM,
+    max_shelf_count_for_min_segment_mm, max_shelves_min_segment_shelf_bottoms_mm,
+    two_tier_rhythm_shelf_bottoms_mm, validate_explicit_shelf_bottoms_mm,
+    zones_equal_fill_shelf_bottoms_mm, DEFAULT_SHELF_THICKNESS_MM, MAX_SHELF_BOARDS,
 };
 pub use panels::{panel_blanks_for_spec, PanelBlank};
 pub use preview_mesh::{build_preview_mesh, PreviewMesh};

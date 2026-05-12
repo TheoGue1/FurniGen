@@ -10,7 +10,9 @@ type InteriorUiMode =
   | "equal_spacing"
   | "explicit_heights"
   | "zones_equal_fill"
-  | "golden_ratio_ladder";
+  | "golden_ratio_ladder"
+  | "two_tier_rhythm"
+  | "max_shelves_min_segment";
 
 function parseOptionalShelfThicknessMm(raw: string): number | undefined {
   const t = raw.trim();
@@ -19,6 +21,18 @@ function parseOptionalShelfThicknessMm(raw: string): number | undefined {
   }
   const v = Number(t);
   if (!Number.isFinite(v) || v <= 0) {
+    return undefined;
+  }
+  return v;
+}
+
+function parseOptionalPositiveInt(raw: string): number | undefined {
+  const t = raw.trim();
+  if (t === "") {
+    return undefined;
+  }
+  const v = Number(t);
+  if (!Number.isFinite(v) || v < 1 || v > 500 || !Number.isInteger(v)) {
     return undefined;
   }
   return v;
@@ -67,6 +81,17 @@ export function App() {
     zones_shelf_count: 3,
     /** Horizontal shelf boards for golden-ratio ladder (φ-weighted air gaps). */
     golden_rungs: 3,
+    /** Two-tier rhythm: transition Y (mm), dense gap below / wider gap at and above shelf tops crossing it. */
+    two_tier_transition_y_mm: 900,
+    two_tier_gap_lower_mm: 80,
+    two_tier_gap_upper_mm: 200,
+    two_tier_top_reserve_mm: 0,
+    /** Max shelves / min vertical segment (mm); optional target count in `max_shelf_count_str`. */
+    max_min_vertical_segment_mm: 100,
+    max_bottom_reserve_mm: 0,
+    max_top_reserve_mm: 0,
+    /** Empty = maximum feasible shelf count from core. */
+    max_shelf_count_str: "",
   });
 
   useEffect(() => {
@@ -141,7 +166,34 @@ export function App() {
                       rungs: Math.max(1, Math.floor(dims.golden_rungs)),
                       ...(shelfThicknessMm !== undefined ? { shelf_thickness_mm: shelfThicknessMm } : {}),
                     }
-                  : undefined;
+                  : dims.interiorMode === "two_tier_rhythm"
+                    ? {
+                        type: "two_tier_rhythm_shelves" as const,
+                        transition_y_mm: dims.two_tier_transition_y_mm,
+                        gap_lower_mm: dims.two_tier_gap_lower_mm,
+                        gap_upper_mm: dims.two_tier_gap_upper_mm,
+                        ...(dims.two_tier_top_reserve_mm > 0
+                          ? { top_reserve_mm: Math.max(0, dims.two_tier_top_reserve_mm) }
+                          : {}),
+                        ...(shelfThicknessMm !== undefined ? { shelf_thickness_mm: shelfThicknessMm } : {}),
+                      }
+                    : dims.interiorMode === "max_shelves_min_segment"
+                      ? (() => {
+                          const target = parseOptionalPositiveInt(dims.max_shelf_count_str);
+                          return {
+                            type: "max_shelves_min_segment_shelves" as const,
+                            min_vertical_segment_mm: Math.max(0.01, dims.max_min_vertical_segment_mm),
+                            ...(dims.max_bottom_reserve_mm > 0
+                              ? { bottom_reserve_mm: Math.max(0, dims.max_bottom_reserve_mm) }
+                              : {}),
+                            ...(dims.max_top_reserve_mm > 0
+                              ? { top_reserve_mm: Math.max(0, dims.max_top_reserve_mm) }
+                              : {}),
+                            ...(target !== undefined ? { shelf_count: target } : {}),
+                            ...(shelfThicknessMm !== undefined ? { shelf_thickness_mm: shelfThicknessMm } : {}),
+                          };
+                        })()
+                      : undefined;
         const spec: WardrobeSpec = {
           version: 1,
           layout: {
@@ -177,9 +229,19 @@ export function App() {
                   ? `${Math.max(1, Math.floor(dims.golden_rungs))} shelf boards (golden-ratio ladder gaps)${
                       shelfThicknessMm !== undefined ? ` · shelf ${shelfThicknessMm} mm thick` : ""
                     }`
-                  : `${parseShelfBottomYListMm(dims.explicit_shelf_bottoms_y_str).length} explicit shelf bottom Y value(s)${
-                      shelfThicknessMm !== undefined ? ` · shelf ${shelfThicknessMm} mm thick` : ""
-                    }`;
+                  : dims.interiorMode === "two_tier_rhythm"
+                    ? `two-tier rhythm (transition ${Math.round(dims.two_tier_transition_y_mm)} mm · gaps ${Math.round(dims.two_tier_gap_lower_mm)}/${Math.round(dims.two_tier_gap_upper_mm)} mm)${
+                        shelfThicknessMm !== undefined ? ` · shelf ${shelfThicknessMm} mm thick` : ""
+                      }`
+                    : dims.interiorMode === "max_shelves_min_segment"
+                      ? `max shelves / min segment ${Math.round(dims.max_min_vertical_segment_mm)} mm${
+                          parseOptionalPositiveInt(dims.max_shelf_count_str) !== undefined
+                            ? ` · target count ${parseOptionalPositiveInt(dims.max_shelf_count_str)}`
+                            : ""
+                        }${shelfThicknessMm !== undefined ? ` · shelf ${shelfThicknessMm} mm thick` : ""}`
+                      : `${parseShelfBottomYListMm(dims.explicit_shelf_bottoms_y_str).length} explicit shelf bottom Y value(s)${
+                          shelfThicknessMm !== undefined ? ` · shelf ${shelfThicknessMm} mm thick` : ""
+                        }`;
         setWasmDetail(
           `WASM ${wasm.wasmVersion()} · ${Math.round(dims.width_mm)}×${Math.round(dims.height_mm)}×${Math.round(dims.depth_mm)} mm · ${interiorLabel} · WardrobeSpec v1 + preview mesh`
         );
@@ -210,6 +272,14 @@ export function App() {
     dims.zones_top_reserve_mm,
     dims.zones_shelf_count,
     dims.golden_rungs,
+    dims.two_tier_transition_y_mm,
+    dims.two_tier_gap_lower_mm,
+    dims.two_tier_gap_upper_mm,
+    dims.two_tier_top_reserve_mm,
+    dims.max_min_vertical_segment_mm,
+    dims.max_bottom_reserve_mm,
+    dims.max_top_reserve_mm,
+    dims.max_shelf_count_str,
   ]);
 
   const meshForViewer = wasmStatus === "ready" && previewMeshJson ? previewMeshJson : null;
@@ -246,6 +316,8 @@ export function App() {
               <option value="explicit_heights">Explicit shelf bottom Y (mm)</option>
               <option value="zones_equal_fill">Zones + equal-fill (middle band)</option>
               <option value="golden_ratio_ladder">Golden ratio ladder shelves</option>
+              <option value="two_tier_rhythm">Two-tier rhythm shelves</option>
+              <option value="max_shelves_min_segment">Max shelves / min segment height</option>
             </select>
           </label>
           <label className="flex min-w-[7.5rem] flex-col gap-1 text-xs text-slate-400">
@@ -305,7 +377,9 @@ export function App() {
           {(dims.interiorMode === "equal_spacing" ||
             dims.interiorMode === "explicit_heights" ||
             dims.interiorMode === "zones_equal_fill" ||
-            dims.interiorMode === "golden_ratio_ladder") && (
+            dims.interiorMode === "golden_ratio_ladder" ||
+            dims.interiorMode === "two_tier_rhythm" ||
+            dims.interiorMode === "max_shelves_min_segment") && (
             <label className="flex min-w-[10rem] flex-col gap-1 text-xs text-slate-400">
               Shelf thickness (mm, optional)
               <input
@@ -400,6 +474,154 @@ export function App() {
                 }}
               />
             </label>
+          )}
+          {dims.interiorMode === "two_tier_rhythm" && (
+            <>
+              <label className="flex min-w-[8rem] flex-col gap-1 text-xs text-slate-400">
+                Transition Y (mm)
+                <input
+                  data-testid="input-two-tier-transition-y-mm"
+                  className="rounded border border-slate-600 bg-slate-900 px-2 py-1.5 text-sm text-slate-100"
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={dims.two_tier_transition_y_mm}
+                  onChange={(e) => {
+                    const v = e.target.valueAsNumber;
+                    if (!Number.isFinite(v) || v < 1) {
+                      return;
+                    }
+                    setDims((d) => ({ ...d, two_tier_transition_y_mm: v }));
+                  }}
+                />
+              </label>
+              <label className="flex min-w-[8rem] flex-col gap-1 text-xs text-slate-400">
+                Lower gap (mm)
+                <input
+                  data-testid="input-two-tier-gap-lower-mm"
+                  className="rounded border border-slate-600 bg-slate-900 px-2 py-1.5 text-sm text-slate-100"
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={dims.two_tier_gap_lower_mm}
+                  onChange={(e) => {
+                    const v = e.target.valueAsNumber;
+                    if (!Number.isFinite(v) || v < 1) {
+                      return;
+                    }
+                    setDims((d) => ({ ...d, two_tier_gap_lower_mm: v }));
+                  }}
+                />
+              </label>
+              <label className="flex min-w-[8rem] flex-col gap-1 text-xs text-slate-400">
+                Upper gap (mm)
+                <input
+                  data-testid="input-two-tier-gap-upper-mm"
+                  className="rounded border border-slate-600 bg-slate-900 px-2 py-1.5 text-sm text-slate-100"
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={dims.two_tier_gap_upper_mm}
+                  onChange={(e) => {
+                    const v = e.target.valueAsNumber;
+                    if (!Number.isFinite(v) || v < 1) {
+                      return;
+                    }
+                    setDims((d) => ({ ...d, two_tier_gap_upper_mm: v }));
+                  }}
+                />
+              </label>
+              <label className="flex min-w-[8rem] flex-col gap-1 text-xs text-slate-400">
+                Top reserve (mm)
+                <input
+                  data-testid="input-two-tier-top-reserve-mm"
+                  className="rounded border border-slate-600 bg-slate-900 px-2 py-1.5 text-sm text-slate-100"
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={dims.two_tier_top_reserve_mm}
+                  onChange={(e) => {
+                    const v = e.target.valueAsNumber;
+                    if (!Number.isFinite(v) || v < 0) {
+                      return;
+                    }
+                    setDims((d) => ({ ...d, two_tier_top_reserve_mm: v }));
+                  }}
+                />
+              </label>
+            </>
+          )}
+          {dims.interiorMode === "max_shelves_min_segment" && (
+            <>
+              <label className="flex min-w-[10rem] flex-col gap-1 text-xs text-slate-400">
+                Min vertical segment (mm)
+                <input
+                  data-testid="input-max-min-segment-mm"
+                  className="rounded border border-slate-600 bg-slate-900 px-2 py-1.5 text-sm text-slate-100"
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={dims.max_min_vertical_segment_mm}
+                  onChange={(e) => {
+                    const v = e.target.valueAsNumber;
+                    if (!Number.isFinite(v) || v < 1) {
+                      return;
+                    }
+                    setDims((d) => ({ ...d, max_min_vertical_segment_mm: v }));
+                  }}
+                />
+              </label>
+              <label className="flex min-w-[8rem] flex-col gap-1 text-xs text-slate-400">
+                Bottom reserve (mm)
+                <input
+                  data-testid="input-max-bottom-reserve-mm"
+                  className="rounded border border-slate-600 bg-slate-900 px-2 py-1.5 text-sm text-slate-100"
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={dims.max_bottom_reserve_mm}
+                  onChange={(e) => {
+                    const v = e.target.valueAsNumber;
+                    if (!Number.isFinite(v) || v < 0) {
+                      return;
+                    }
+                    setDims((d) => ({ ...d, max_bottom_reserve_mm: v }));
+                  }}
+                />
+              </label>
+              <label className="flex min-w-[8rem] flex-col gap-1 text-xs text-slate-400">
+                Top reserve (mm)
+                <input
+                  data-testid="input-max-top-reserve-mm"
+                  className="rounded border border-slate-600 bg-slate-900 px-2 py-1.5 text-sm text-slate-100"
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={dims.max_top_reserve_mm}
+                  onChange={(e) => {
+                    const v = e.target.valueAsNumber;
+                    if (!Number.isFinite(v) || v < 0) {
+                      return;
+                    }
+                    setDims((d) => ({ ...d, max_top_reserve_mm: v }));
+                  }}
+                />
+              </label>
+              <label className="flex min-w-[11rem] flex-col gap-1 text-xs text-slate-400">
+                Target shelf count (optional)
+                <input
+                  data-testid="input-max-shelf-count-str"
+                  className="rounded border border-slate-600 bg-slate-900 px-2 py-1.5 font-mono text-sm text-slate-100"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="max feasible"
+                  value={dims.max_shelf_count_str}
+                  onChange={(e) => {
+                    setDims((d) => ({ ...d, max_shelf_count_str: e.target.value }));
+                  }}
+                />
+              </label>
+            </>
           )}
           {dims.interiorMode === "equal_spacing" && (
             <label className="flex min-w-[7.5rem] flex-col gap-1 text-xs text-slate-400">

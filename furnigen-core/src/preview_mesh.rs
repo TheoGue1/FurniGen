@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::interior_shelves::{
     equal_spacing_shelf_bottoms_mm, golden_ratio_ladder_shelf_bottoms_mm,
+    max_shelves_min_segment_shelf_bottoms_mm, two_tier_rhythm_shelf_bottoms_mm,
     validate_explicit_shelf_bottoms_mm, zones_equal_fill_shelf_bottoms_mm,
     DEFAULT_SHELF_THICKNESS_MM,
 };
@@ -93,6 +94,46 @@ fn append_interior_shelf_quads(
         } => {
             let t = shelf_thickness_mm.unwrap_or(DEFAULT_SHELF_THICKNESS_MM);
             match golden_ratio_ladder_shelf_bottoms_mm(inner_height_mm, *rungs, t) {
+                Ok(b) => (b, t),
+                Err(_) => return,
+            }
+        }
+        InteriorSpec::TwoTierRhythmShelves {
+            transition_y_mm,
+            gap_lower_mm,
+            gap_upper_mm,
+            top_reserve_mm,
+            shelf_thickness_mm,
+        } => {
+            let t = shelf_thickness_mm.unwrap_or(DEFAULT_SHELF_THICKNESS_MM);
+            match two_tier_rhythm_shelf_bottoms_mm(
+                inner_height_mm,
+                *top_reserve_mm,
+                *transition_y_mm,
+                *gap_lower_mm,
+                *gap_upper_mm,
+                t,
+            ) {
+                Ok(b) => (b, t),
+                Err(_) => return,
+            }
+        }
+        InteriorSpec::MaxShelvesMinSegmentShelves {
+            min_vertical_segment_mm,
+            bottom_reserve_mm,
+            top_reserve_mm,
+            shelf_count,
+            shelf_thickness_mm,
+        } => {
+            let t = shelf_thickness_mm.unwrap_or(DEFAULT_SHELF_THICKNESS_MM);
+            match max_shelves_min_segment_shelf_bottoms_mm(
+                inner_height_mm,
+                *bottom_reserve_mm,
+                *top_reserve_mm,
+                *min_vertical_segment_mm,
+                t,
+                *shelf_count,
+            ) {
                 Ok(b) => (b, t),
                 Err(_) => return,
             }
@@ -230,6 +271,24 @@ mod tests {
     #[test]
     fn straight_run_with_golden_ratio_ladder_shelves_adds_vertices() {
         let json = r#"{"version":1,"layout":{"type":"straight_run","width_mm":2400.0,"height_mm":2200.0,"depth_mm":600.0},"interior":{"type":"golden_ratio_ladder_shelves","rungs":3}}"#;
+        let spec = parse_wardrobe_spec_json(json.trim()).unwrap();
+        let mesh = build_preview_mesh(&spec);
+        assert!(mesh.positions.len() > 60);
+        assert!(mesh.indices.len() > 30);
+    }
+
+    #[test]
+    fn straight_run_with_two_tier_rhythm_shelves_adds_vertices() {
+        let json = r#"{"version":1,"layout":{"type":"straight_run","width_mm":2400.0,"height_mm":2200.0,"depth_mm":600.0},"interior":{"type":"two_tier_rhythm_shelves","transition_y_mm":900.0,"gap_lower_mm":80.0,"gap_upper_mm":200.0}}"#;
+        let spec = parse_wardrobe_spec_json(json.trim()).unwrap();
+        let mesh = build_preview_mesh(&spec);
+        assert!(mesh.positions.len() > 60);
+        assert!(mesh.indices.len() > 30);
+    }
+
+    #[test]
+    fn straight_run_with_max_shelves_min_segment_adds_vertices() {
+        let json = r#"{"version":1,"layout":{"type":"straight_run","width_mm":2400.0,"height_mm":2200.0,"depth_mm":600.0},"interior":{"type":"max_shelves_min_segment_shelves","min_vertical_segment_mm":100.0}}"#;
         let spec = parse_wardrobe_spec_json(json.trim()).unwrap();
         let mesh = build_preview_mesh(&spec);
         assert!(mesh.positions.len() > 60);

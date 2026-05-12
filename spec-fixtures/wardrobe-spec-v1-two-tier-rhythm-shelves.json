@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "layout": {
+    "type": "straight_run",
+    "width_mm": 2400,
+    "height_mm": 2200,
+    "depth_mm": 600
+  },
+  "interior": {
+    "type": "two_tier_rhythm_shelves",
+    "transition_y_mm": 900,
+    "gap_lower_mm": 80,
+    "gap_upper_mm": 200
+  }
+}

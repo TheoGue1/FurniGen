@@ -191,4 +191,30 @@ mod tests {
         let svg = build_wardrobe_panels_svg(j).unwrap();
         assert!(svg.contains("id=\"shelf_01\""));
     }
+
+    #[test]
+    fn two_tier_rhythm_interior_bom_and_svg_include_shelves() {
+        const FIXTURE: &str =
+            include_str!("../../spec-fixtures/wardrobe-spec-v1-two-tier-rhythm-shelves.json");
+        let j = FIXTURE.trim();
+        validate_wardrobe_spec_json(j).unwrap();
+        let bom = build_wardrobe_bom_json(j).unwrap();
+        assert!(bom.contains("shelf_01"));
+        assert!(bom.contains("shelf_10"));
+        let svg = build_wardrobe_panels_svg(j).unwrap();
+        assert!(svg.contains("id=\"shelf_01\""));
+    }
+
+    #[test]
+    fn max_shelves_min_segment_interior_bom_and_svg_include_shelves() {
+        const FIXTURE: &str =
+            include_str!("../../spec-fixtures/wardrobe-spec-v1-max-shelves-min-segment-shelves.json");
+        let j = FIXTURE.trim();
+        validate_wardrobe_spec_json(j).unwrap();
+        let bom = build_wardrobe_bom_json(j).unwrap();
+        assert!(bom.contains("shelf_01"));
+        assert!(bom.contains("shelf_17"));
+        let svg = build_wardrobe_panels_svg(j).unwrap();
+        assert!(svg.contains("id=\"shelf_17\""));
+    }
 }

@@ -3,6 +3,9 @@
 /// Nominal shelf thickness when JSON omits `shelf_thickness_mm` (mm).
 pub const DEFAULT_SHELF_THICKNESS_MM: f64 = 18.0;
 
+/// Upper bound on shelf board count for greedy / packing modes (matches other interior modes).
+pub const MAX_SHELF_BOARDS: u32 = 500;
+
 const MIN_AIR_GAP_MM: f64 = 0.01;
 
 fn golden_ratio_phi() -> f64 {
@@ -136,6 +139,193 @@ pub fn golden_ratio_ladder_shelf_bottoms_mm(
         w *= phi;
     }
     Ok(bottoms)
+}
+
+/// Bottom **Y** of each horizontal shelf board (mm), ordered upward, from a **two-tier vertical rhythm**.
+///
+/// Shelves are packed bottom-up from the inner floor. The first air gap (floor → first shelf bottom)
+/// is `gap_lower_mm`. After each shelf, the next air gap is `gap_lower_mm` while the **previous**
+/// shelf’s top is strictly below `transition_y_mm`, otherwise `gap_upper_mm` (typically wider).
+/// Packing stops when another shelf would violate a minimum ceiling air gap (0.01 mm, same as other modes)
+/// below `inner_height_mm - top_reserve_mm`.
+///
+/// Requires at least one shelf that fits. `gap_lower_mm` and `gap_upper_mm` must be ≥ the core minimum air gap;
+/// `gap_upper_mm` must be ≥ `gap_lower_mm`. `transition_y_mm` lies on the open interval
+/// `(0, inner_height_mm)`.
+pub fn two_tier_rhythm_shelf_bottoms_mm(
+    inner_height_mm: f64,
+    top_reserve_mm: f64,
+    transition_y_mm: f64,
+    gap_lower_mm: f64,
+    gap_upper_mm: f64,
+    shelf_thickness_mm: f64,
+) -> Result<Vec<f64>, String> {
+    if !inner_height_mm.is_finite() || inner_height_mm <= 0.0 {
+        return Err("inner height must be finite and positive".to_owned());
+    }
+    if !top_reserve_mm.is_finite() || top_reserve_mm < 0.0 {
+        return Err("top_reserve_mm must be finite and non-negative".to_owned());
+    }
+    if top_reserve_mm >= inner_height_mm {
+        return Err(format!(
+            "top_reserve_mm ({top_reserve_mm}) must be strictly less than inner height ({inner_height_mm} mm)"
+        ));
+    }
+    if !transition_y_mm.is_finite()
+        || transition_y_mm <= 0.0
+        || transition_y_mm >= inner_height_mm
+    {
+        return Err(format!(
+            "transition_y_mm must be finite and strictly between 0 and inner height ({inner_height_mm} mm)"
+        ));
+    }
+    if !gap_lower_mm.is_finite() || gap_lower_mm < MIN_AIR_GAP_MM {
+        return Err(format!(
+            "gap_lower_mm must be finite and at least {MIN_AIR_GAP_MM} mm"
+        ));
+    }
+    if !gap_upper_mm.is_finite() || gap_upper_mm < MIN_AIR_GAP_MM {
+        return Err(format!(
+            "gap_upper_mm must be finite and at least {MIN_AIR_GAP_MM} mm"
+        ));
+    }
+    if gap_upper_mm + 1e-12 < gap_lower_mm {
+        return Err("gap_upper_mm must be greater than or equal to gap_lower_mm".to_owned());
+    }
+    if !shelf_thickness_mm.is_finite() || shelf_thickness_mm <= 0.0 {
+        return Err("shelf_thickness_mm must be finite and positive".to_owned());
+    }
+    let h_eff = inner_height_mm - top_reserve_mm;
+    let mut bottoms: Vec<f64> = Vec::new();
+    let mut y = gap_lower_mm;
+    if y + shelf_thickness_mm > h_eff - MIN_AIR_GAP_MM {
+        return Err(format!(
+            "inner usable height ({h_eff} mm) cannot fit a shelf with floor gap {gap_lower_mm} mm, thickness {shelf_thickness_mm} mm, and minimum top air {MIN_AIR_GAP_MM} mm"
+        ));
+    }
+    for _ in 0..MAX_SHELF_BOARDS {
+        if y + shelf_thickness_mm > h_eff - MIN_AIR_GAP_MM {
+            break;
+        }
+        bottoms.push(y);
+        let shelf_top = y + shelf_thickness_mm;
+        let g = if shelf_top < transition_y_mm {
+            gap_lower_mm
+        } else {
+            gap_upper_mm
+        };
+        let y_next = shelf_top + g;
+        if y_next + shelf_thickness_mm > h_eff - MIN_AIR_GAP_MM {
+            break;
+        }
+        y = y_next;
+    }
+    if bottoms.is_empty() {
+        return Err(
+            "two-tier rhythm could not place any shelf with the given gaps and reserves".to_owned(),
+        );
+    }
+    Ok(bottoms)
+}
+
+/// Computes **maximum** shelf count `n` (≥ 1) such that `band_mm - n·t ≥ (n+1)·m`, i.e. `n` boards fit
+/// in band height `band_mm` with shelf thickness `t` and **every** vertical air segment (floor–first
+/// shelf, between boards, last shelf–ceiling) at least `m` when gaps are distributed **equally**.
+///
+/// Returns `0` when no such `n` exists (including when inputs are invalid).
+pub fn max_shelf_count_for_min_segment_mm(
+    band_mm: f64,
+    shelf_thickness_mm: f64,
+    min_vertical_segment_mm: f64,
+) -> u32 {
+    if !band_mm.is_finite()
+        || band_mm <= 0.0
+        || !shelf_thickness_mm.is_finite()
+        || shelf_thickness_mm <= 0.0
+        || !min_vertical_segment_mm.is_finite()
+        || min_vertical_segment_mm < MIN_AIR_GAP_MM
+    {
+        return 0;
+    }
+    let mut n_max: u32 = 0;
+    for n in 1..=MAX_SHELF_BOARDS {
+        let nf = f64::from(n);
+        if band_mm - nf * shelf_thickness_mm >= (nf + 1.0) * min_vertical_segment_mm {
+            n_max = n;
+        } else {
+            break;
+        }
+    }
+    n_max
+}
+
+/// Bottom **Y** of each horizontal shelf board (mm), ordered upward, by **minimum vertical segment**
+/// packing inside a band `[bottom_reserve_mm, inner_height_mm - top_reserve_mm)`.
+///
+/// **Algorithm**
+/// 1. `band_mm = inner_height_mm - bottom_reserve_mm - top_reserve_mm` must be positive.
+/// 2. `n_max` is the largest integer `n ≥ 1` with `band_mm - n·t ≥ (n+1)·m` where `t` is shelf thickness
+///    and `m` is `min_vertical_segment_mm` (each of the `n+1` equal air gaps is then ≥ `m`).
+/// 3. If `shelf_count` is `None`, use `n = n_max`. If `Some(k)`, require `1 ≤ k ≤ n_max` and use `n = k`
+///    (gaps widen: `(band_mm - n·t)/(n+1) ≥ m` still holds).
+/// 4. Shelf bottoms match [`equal_spacing_shelf_bottoms_mm`] on `band_mm` with count `n`, shifted by
+///    `+ bottom_reserve_mm`.
+pub fn max_shelves_min_segment_shelf_bottoms_mm(
+    inner_height_mm: f64,
+    bottom_reserve_mm: f64,
+    top_reserve_mm: f64,
+    min_vertical_segment_mm: f64,
+    shelf_thickness_mm: f64,
+    shelf_count: Option<u32>,
+) -> Result<Vec<f64>, String> {
+    if !inner_height_mm.is_finite() || inner_height_mm <= 0.0 {
+        return Err("inner height must be finite and positive".to_owned());
+    }
+    if !bottom_reserve_mm.is_finite() || bottom_reserve_mm < 0.0 {
+        return Err("bottom_reserve_mm must be finite and non-negative".to_owned());
+    }
+    if !top_reserve_mm.is_finite() || top_reserve_mm < 0.0 {
+        return Err("top_reserve_mm must be finite and non-negative".to_owned());
+    }
+    if bottom_reserve_mm + top_reserve_mm >= inner_height_mm {
+        return Err(format!(
+            "bottom_reserve_mm ({bottom_reserve_mm}) + top_reserve_mm ({top_reserve_mm}) must be strictly less than inner height ({inner_height_mm} mm)"
+        ));
+    }
+    if !min_vertical_segment_mm.is_finite() || min_vertical_segment_mm < MIN_AIR_GAP_MM {
+        return Err(format!(
+            "min_vertical_segment_mm must be finite and at least {MIN_AIR_GAP_MM} mm"
+        ));
+    }
+    if !shelf_thickness_mm.is_finite() || shelf_thickness_mm <= 0.0 {
+        return Err("shelf_thickness_mm must be finite and positive".to_owned());
+    }
+    let band_mm = inner_height_mm - bottom_reserve_mm - top_reserve_mm;
+    let n_max = max_shelf_count_for_min_segment_mm(band_mm, shelf_thickness_mm, min_vertical_segment_mm);
+    if n_max < 1 {
+        return Err(format!(
+            "cannot fit any shelf: band height {band_mm} mm with thickness {shelf_thickness_mm} mm requires each of (n+1) air gaps ≥ {min_vertical_segment_mm} mm for some n ≥ 1"
+        ));
+    }
+    let n = match shelf_count {
+        None => n_max,
+        Some(k) => {
+            if k < 1 {
+                return Err("shelf_count must be at least 1 when provided".to_owned());
+            }
+            if k > n_max {
+                return Err(format!(
+                    "shelf_count {k} exceeds maximum feasible {n_max} for min_vertical_segment_mm {min_vertical_segment_mm} mm in this band"
+                ));
+            }
+            k
+        }
+    };
+    let in_band = equal_spacing_shelf_bottoms_mm(band_mm, n, shelf_thickness_mm)?;
+    Ok(in_band
+        .into_iter()
+        .map(|y| y + bottom_reserve_mm)
+        .collect())
 }
 
 /// Validates user-supplied shelf bottom **Y** coordinates (mm from inner floor, ascending).
@@ -370,5 +560,84 @@ mod tests {
     #[test]
     fn golden_ratio_ladder_rejects_too_many_boards_for_height() {
         assert!(golden_ratio_ladder_shelf_bottoms_mm(50.0, 10, 18.0).is_err());
+    }
+
+    #[test]
+    fn two_tier_rhythm_monotonic_strictly_increasing_bottoms() {
+        let h = 2200.0;
+        let t = 18.0;
+        let bottoms = two_tier_rhythm_shelf_bottoms_mm(h, 0.0, 900.0, 80.0, 200.0, t).unwrap();
+        assert!(bottoms.len() >= 2);
+        for i in 0..bottoms.len() - 1 {
+            assert!(
+                bottoms[i + 1] > bottoms[i] + t - 1e-6,
+                "shelf bottoms must clear previous thickness"
+            );
+        }
+    }
+
+    #[test]
+    fn two_tier_rhythm_bounds_floor_ceiling_and_gap_regimes() {
+        let h = 2200.0;
+        let t = 18.0;
+        let transition = 900.0;
+        let g_lo = 80.0;
+        let g_hi = 200.0;
+        let bottoms = two_tier_rhythm_shelf_bottoms_mm(h, 0.0, transition, g_lo, g_hi, t).unwrap();
+        assert!((bottoms[0] - g_lo).abs() < 1e-6, "first air gap should match gap_lower");
+        assert!(bottoms[0] > 0.0);
+        let last = *bottoms.last().unwrap();
+        assert!(last + t < h - 1e-6);
+        let top_air = h - (last + t);
+        assert!(top_air >= MIN_AIR_GAP_MM - 1e-6);
+
+        for i in 0..bottoms.len() - 1 {
+            let shelf_top = bottoms[i] + t;
+            let g = bottoms[i + 1] - shelf_top;
+            let expected = if shelf_top < transition { g_lo } else { g_hi };
+            assert!(
+                (g - expected).abs() < 1e-3,
+                "inter-shelf gap {i}: got {g}, expected {expected} (shelf_top={shelf_top})"
+            );
+        }
+    }
+
+    #[test]
+    fn two_tier_rhythm_rejects_inverted_gaps() {
+        assert!(two_tier_rhythm_shelf_bottoms_mm(2200.0, 0.0, 900.0, 200.0, 80.0, 18.0).is_err());
+    }
+
+    #[test]
+    fn max_shelf_count_matches_feasible_equal_spacing() {
+        let band = 2200.0;
+        let t = 18.0;
+        let m = 100.0;
+        let n_max = max_shelf_count_for_min_segment_mm(band, t, m);
+        assert_eq!(n_max, 17);
+        let bottoms = max_shelves_min_segment_shelf_bottoms_mm(2200.0, 0.0, 0.0, m, t, None).unwrap();
+        assert_eq!(bottoms.len() as u32, n_max);
+        let g = (band - f64::from(n_max) * t) / (f64::from(n_max) + 1.0);
+        assert!(g + 1e-6 >= m);
+    }
+
+    #[test]
+    fn max_shelves_min_segment_explicit_count_widens_gaps() {
+        let h = 2200.0;
+        let t = 18.0;
+        let m = 100.0;
+        let max_only = max_shelves_min_segment_shelf_bottoms_mm(h, 0.0, 0.0, m, t, None).unwrap();
+        let fewer = max_shelves_min_segment_shelf_bottoms_mm(h, 0.0, 0.0, m, t, Some(3)).unwrap();
+        assert_eq!(fewer.len(), 3);
+        assert!(fewer.len() < max_only.len());
+        let g3 = (h - 3.0 * t) / 4.0;
+        assert!(g3 > (h - f64::from(max_only.len() as u32) * t) / (f64::from(max_only.len() as u32) + 1.0));
+        assert!(g3 + 1e-6 >= m);
+    }
+
+    #[test]
+    fn max_shelves_min_segment_rejects_impossible_count() {
+        let err = max_shelves_min_segment_shelf_bottoms_mm(2200.0, 0.0, 0.0, 100.0, 18.0, Some(99))
+            .unwrap_err();
+        assert!(err.contains("exceeds maximum"));
     }
 }

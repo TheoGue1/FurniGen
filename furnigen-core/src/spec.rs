@@ -41,6 +41,29 @@ pub enum InteriorSpec {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         shelf_thickness_mm: Option<f64>,
     },
+    /// Dense lower air gaps until a shelf top reaches `transition_y_mm`, then wider gaps; optional top reserve.
+    TwoTierRhythmShelves {
+        transition_y_mm: f64,
+        gap_lower_mm: f64,
+        gap_upper_mm: f64,
+        #[serde(default = "default_f64_zero", skip_serializing_if = "is_default_f64_zero")]
+        top_reserve_mm: f64,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        shelf_thickness_mm: Option<f64>,
+    },
+    /// Equal air gaps in a vertical band; shelf count defaults to the **maximum** that satisfies
+    /// `min_vertical_segment_mm` on every segment, or an explicit `shelf_count` ≤ that maximum.
+    MaxShelvesMinSegmentShelves {
+        min_vertical_segment_mm: f64,
+        #[serde(default = "default_f64_zero", skip_serializing_if = "is_default_f64_zero")]
+        bottom_reserve_mm: f64,
+        #[serde(default = "default_f64_zero", skip_serializing_if = "is_default_f64_zero")]
+        top_reserve_mm: f64,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        shelf_count: Option<u32>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        shelf_thickness_mm: Option<f64>,
+    },
 }
 
 /// Root document exchanged with WASM and the web UI.
@@ -79,6 +102,14 @@ impl From<serde_json::Error> for SpecError {
     fn from(e: serde_json::Error) -> Self {
         SpecError::Json(e.to_string())
     }
+}
+
+fn default_f64_zero() -> f64 {
+    0.0
+}
+
+fn is_default_f64_zero(v: &f64) -> bool {
+    *v == 0.0
 }
 
 fn validate_positive_finite(label: &str, v: f64) -> Result<(), SpecError> {
@@ -218,6 +249,68 @@ fn validate_interior_for_height(
             .map_err(SpecError::Validation)?;
             Ok(())
         }
+        InteriorSpec::TwoTierRhythmShelves {
+            transition_y_mm,
+            gap_lower_mm,
+            gap_upper_mm,
+            top_reserve_mm,
+            shelf_thickness_mm,
+        } => {
+            let t =
+                shelf_thickness_mm.unwrap_or(crate::interior_shelves::DEFAULT_SHELF_THICKNESS_MM);
+            validate_positive_finite("shelf_thickness_mm", t)?;
+            if !top_reserve_mm.is_finite() || *top_reserve_mm < 0.0 {
+                return Err(SpecError::Validation(
+                    "top_reserve_mm must be finite and non-negative".to_owned(),
+                ));
+            }
+            crate::interior_shelves::two_tier_rhythm_shelf_bottoms_mm(
+                inner_height_mm,
+                *top_reserve_mm,
+                *transition_y_mm,
+                *gap_lower_mm,
+                *gap_upper_mm,
+                t,
+            )
+            .map_err(SpecError::Validation)?;
+            Ok(())
+        }
+        InteriorSpec::MaxShelvesMinSegmentShelves {
+            min_vertical_segment_mm,
+            bottom_reserve_mm,
+            top_reserve_mm,
+            shelf_count,
+            shelf_thickness_mm,
+        } => {
+            let t =
+                shelf_thickness_mm.unwrap_or(crate::interior_shelves::DEFAULT_SHELF_THICKNESS_MM);
+            validate_positive_finite("shelf_thickness_mm", t)?;
+            if !bottom_reserve_mm.is_finite() || *bottom_reserve_mm < 0.0 {
+                return Err(SpecError::Validation(
+                    "bottom_reserve_mm must be finite and non-negative".to_owned(),
+                ));
+            }
+            if !top_reserve_mm.is_finite() || *top_reserve_mm < 0.0 {
+                return Err(SpecError::Validation(
+                    "top_reserve_mm must be finite and non-negative".to_owned(),
+                ));
+            }
+            if !min_vertical_segment_mm.is_finite() || *min_vertical_segment_mm <= 0.0 {
+                return Err(SpecError::Validation(
+                    "min_vertical_segment_mm must be finite and positive".to_owned(),
+                ));
+            }
+            crate::interior_shelves::max_shelves_min_segment_shelf_bottoms_mm(
+                inner_height_mm,
+                *bottom_reserve_mm,
+                *top_reserve_mm,
+                *min_vertical_segment_mm,
+                t,
+                *shelf_count,
+            )
+            .map_err(SpecError::Validation)?;
+            Ok(())
+        }
     }
 }
 
@@ -245,6 +338,10 @@ mod tests {
         include_str!("../../spec-fixtures/wardrobe-spec-v1-zones-equal-fill-shelves.json");
     const GOLDEN_RATIO_LADDER: &str =
         include_str!("../../spec-fixtures/wardrobe-spec-v1-golden-ratio-ladder-shelves.json");
+    const TWO_TIER_RHYTHM: &str =
+        include_str!("../../spec-fixtures/wardrobe-spec-v1-two-tier-rhythm-shelves.json");
+    const MAX_SHELVES_MIN_SEGMENT: &str =
+        include_str!("../../spec-fixtures/wardrobe-spec-v1-max-shelves-min-segment-shelves.json");
 
     #[test]
     fn golden_minimal_parse_and_validate() {
@@ -430,6 +527,52 @@ mod tests {
             })
         );
         validate_wardrobe_spec(&spec).unwrap();
+    }
+
+    #[test]
+    fn golden_two_tier_rhythm_fixture_parse_and_validate() {
+        let spec = parse_wardrobe_spec_json(TWO_TIER_RHYTHM.trim()).unwrap();
+        assert_eq!(
+            spec.interior,
+            Some(InteriorSpec::TwoTierRhythmShelves {
+                transition_y_mm: 900.0,
+                gap_lower_mm: 80.0,
+                gap_upper_mm: 200.0,
+                top_reserve_mm: 0.0,
+                shelf_thickness_mm: None,
+            })
+        );
+        validate_wardrobe_spec(&spec).unwrap();
+    }
+
+    #[test]
+    fn interior_two_tier_rejects_gap_upper_below_lower() {
+        let json = r#"{"version":1,"layout":{"type":"straight_run","width_mm":2400.0,"height_mm":2200.0,"depth_mm":600.0},"interior":{"type":"two_tier_rhythm_shelves","transition_y_mm":900.0,"gap_lower_mm":120.0,"gap_upper_mm":80.0}}"#;
+        let err = parse_wardrobe_spec_json(json).unwrap_err();
+        assert!(matches!(err, SpecError::Validation(_)));
+    }
+
+    #[test]
+    fn golden_max_shelves_min_segment_fixture_parse_and_validate() {
+        let spec = parse_wardrobe_spec_json(MAX_SHELVES_MIN_SEGMENT.trim()).unwrap();
+        assert_eq!(
+            spec.interior,
+            Some(InteriorSpec::MaxShelvesMinSegmentShelves {
+                min_vertical_segment_mm: 100.0,
+                bottom_reserve_mm: 0.0,
+                top_reserve_mm: 0.0,
+                shelf_count: None,
+                shelf_thickness_mm: None,
+            })
+        );
+        validate_wardrobe_spec(&spec).unwrap();
+    }
+
+    #[test]
+    fn interior_max_shelves_rejects_shelf_count_above_feasible() {
+        let json = r#"{"version":1,"layout":{"type":"straight_run","width_mm":2400.0,"height_mm":2200.0,"depth_mm":600.0},"interior":{"type":"max_shelves_min_segment_shelves","min_vertical_segment_mm":100.0,"shelf_count":99}}"#;
+        let err = parse_wardrobe_spec_json(json).unwrap_err();
+        assert!(matches!(err, SpecError::Validation(_)));
     }
 
     #[test]

@@ -12,3 +12,4 @@ Short architecture decision records (ADRs) for FurniGen. Convention and agent wo
 | [0006](0006-interior-explicit-shelf-heights.md) | Interior explicit shelf bottom Y list | accepted |
 | [0007](0007-interior-zones-equal-fill-shelves.md) | Interior zones + equal-fill shelves in middle band | accepted |
 | [0008](0008-interior-golden-ratio-ladder-shelves.md) | Interior golden ratio ladder shelves | accepted |
+| [0009](0009-interior-two-tier-rhythm-max-shelves-min-segment.md) | Interior two-tier rhythm & max-shelves min-segment | accepted |

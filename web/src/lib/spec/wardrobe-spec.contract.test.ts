@@ -75,6 +75,26 @@ describe("WardrobeSpec Zod contract (golden fixtures)", () => {
     });
   });
 
+  it("accepts golden two_tier_rhythm_shelves fixture", () => {
+    const raw = fixture("wardrobe-spec-v1-two-tier-rhythm-shelves.json");
+    const spec = parseWardrobeSpecJson(raw);
+    expect(spec.interior).toEqual({
+      type: "two_tier_rhythm_shelves",
+      transition_y_mm: 900,
+      gap_lower_mm: 80,
+      gap_upper_mm: 200,
+    });
+  });
+
+  it("accepts golden max_shelves_min_segment_shelves fixture", () => {
+    const raw = fixture("wardrobe-spec-v1-max-shelves-min-segment-shelves.json");
+    const spec = parseWardrobeSpecJson(raw);
+    expect(spec.interior).toEqual({
+      type: "max_shelves_min_segment_shelves",
+      min_vertical_segment_mm: 100,
+    });
+  });
+
   it("rejects golden_ratio_ladder_shelves with rungs below 1", () => {
     const raw = JSON.stringify({
       version: 1,

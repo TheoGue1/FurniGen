@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "layout": {
+    "type": "straight_run",
+    "width_mm": 2400,
+    "height_mm": 2200,
+    "depth_mm": 600
+  },
+  "interior": {
+    "type": "max_shelves_min_segment_shelves",
+    "min_vertical_segment_mm": 100
+  }
+}
