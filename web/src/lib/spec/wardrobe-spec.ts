@@ -13,6 +13,13 @@ const straightRunLayoutSchema = z.object({
 /** v1 straight run only; widen to `z.discriminatedUnion` when multiple `type` values exist. */
 export const layoutSpecSchema = straightRunLayoutSchema;
 
+const clearanceSpecSchema = z.object({
+  carcass_panel_thickness_mm: z.number().finite().nonnegative().optional(),
+  side_inset_mm: z.number().finite().nonnegative().optional(),
+  front_setback_mm: z.number().finite().nonnegative().optional(),
+  shelf_nosing_mm: z.number().finite().nonnegative().optional(),
+});
+
 /** Mirrors `furnigen_core::InteriorSpec`. */
 export const interiorSpecSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("stub") }),
@@ -55,12 +62,49 @@ export const interiorSpecSchema = z.discriminatedUnion("type", [
     shelf_count: z.number().int().min(1).max(500).optional(),
     shelf_thickness_mm: z.number().finite().positive().optional(),
   }),
+  z.object({
+    type: z.literal("seeded_random_min_gap_shelves"),
+    seed: z.number().finite().nonnegative(),
+    shelf_count: z.number().int().min(1).max(500),
+    min_gap_mm: z.number().finite().positive(),
+    bottom_reserve_mm: z.number().finite().nonnegative().optional(),
+    top_reserve_mm: z.number().finite().nonnegative().optional(),
+    shelf_thickness_mm: z.number().finite().positive().optional(),
+  }),
+  z.object({
+    type: z.literal("weighted_random_band_shelves"),
+    seed: z.number().finite().nonnegative(),
+    shelf_count: z.number().int().min(1).max(500),
+    min_gap_mm: z.number().finite().positive(),
+    bottom_reserve_mm: z.number().finite().nonnegative().optional(),
+    top_reserve_mm: z.number().finite().nonnegative().optional(),
+    band_weight_lower: z.number().finite().positive().optional(),
+    band_weight_middle: z.number().finite().positive().optional(),
+    band_weight_upper: z.number().finite().positive().optional(),
+    shelf_thickness_mm: z.number().finite().positive().optional(),
+  }),
+  z.object({
+    type: z.literal("equal_vertical_bays_equal_spacing_shelves"),
+    bay_count: z.number().int().min(1).max(500),
+    shelf_count: z.number().int().min(1).max(500),
+    upright_thickness_mm: z.number().finite().positive().optional(),
+    shelf_thickness_mm: z.number().finite().positive().optional(),
+  }),
+  z.object({
+    type: z.literal("grid_uprights_explicit_rows_shelves"),
+    bay_count: z.number().int().min(1).max(500),
+    shelf_bottom_y_mm: z.array(z.number().finite()).max(500),
+    upright_thickness_mm: z.number().finite().positive().optional(),
+    shelf_thickness_mm: z.number().finite().positive().optional(),
+    min_gap_mm: z.number().finite().nonnegative().optional(),
+  }),
 ]);
 
 export const wardrobeSpecSchema = z.object({
   version: z.literal(WARDROBE_SPEC_VERSION),
   layout: layoutSpecSchema,
   interior: interiorSpecSchema.optional(),
+  clearance: clearanceSpecSchema.optional(),
   extensions: z.record(z.string(), z.unknown()).optional().default({}),
 });
 

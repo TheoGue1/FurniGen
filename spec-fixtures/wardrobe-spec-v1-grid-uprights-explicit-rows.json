@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "layout": {
+    "type": "straight_run",
+    "width_mm": 2400,
+    "height_mm": 2200,
+    "depth_mm": 600
+  },
+  "interior": {
+    "type": "grid_uprights_explicit_rows_shelves",
+    "bay_count": 2,
+    "shelf_bottom_y_mm": [500, 1200, 1700],
+    "upright_thickness_mm": 18
+  }
+}

@@ -1,4 +1,10 @@
 //! Shelf placement from interior spec (mm): equal spacing, zones, explicit heights, golden-ratio ladders, …
+//!
+//! ## PRNG (seeded random modes)
+//!
+//! [`SplitMix64`] implements Vigna’s **SplitMix64** mixer (fast, deterministic `u64` stream). Shelf slack
+//! vectors draw **open-interval** uniforms `(0,1)` from the upper **53** bits to stay well-behaved in `ln`
+//! for Gamma draws. Same implementation is used on native targets and `wasm32` for golden parity.
 
 /// Nominal shelf thickness when JSON omits `shelf_thickness_mm` (mm).
 pub const DEFAULT_SHELF_THICKNESS_MM: f64 = 18.0;
@@ -7,6 +13,255 @@ pub const DEFAULT_SHELF_THICKNESS_MM: f64 = 18.0;
 pub const MAX_SHELF_BOARDS: u32 = 500;
 
 const MIN_AIR_GAP_MM: f64 = 0.01;
+
+/// Deterministic **SplitMix64** PRNG (Vigna, 2013). Not cryptographically secure.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SplitMix64 {
+    state: u64,
+}
+
+impl SplitMix64 {
+    pub fn new(seed: u64) -> Self {
+        Self { state: seed }
+    }
+
+    pub fn next_u64(&mut self) -> u64 {
+        self.state = self.state.wrapping_add(0x9E37_79B97F4A7C15);
+        let mut z = self.state;
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D1CE4_E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB1331_11EB);
+        z ^ (z >> 31)
+    }
+
+    /// Uniform in **(0,1)** from 53 high bits (avoids exact `0` for `ln` in Gamma draws).
+    pub fn next_u01_open01(&mut self) -> f64 {
+        let x = self.next_u64() >> 11;
+        let denom = (1u64 << 53) as f64;
+        ((x as f64) + 0.5) / denom
+    }
+}
+
+fn sample_erlang_sum_exp(rng: &mut SplitMix64, shape: u32) -> f64 {
+    let mut s = 0.0;
+    for _ in 0..shape {
+        let u = rng.next_u01_open01();
+        s -= u.ln();
+    }
+    s
+}
+
+/// Bottom **Y** of each horizontal shelf board (mm), ordered upward, from **deterministic random** slack
+/// split across the `shelf_count + 1` vertical air segments (floor → first bottom, between boards, last top).
+///
+/// Constraints: first shelf bottom ≥ `bottom_reserve_mm`; each inter-board air ≥ `min_gap_mm`;
+/// ceiling clearance ≥ `top_reserve_mm`. `slack = inner - bottom_reserve - top_reserve - n·t - (n-1)·min_gap`
+/// is split across segments with a **uniform Dirichlet** draw via independent `Exp(1)` spacings.
+pub fn seeded_random_min_gap_shelf_bottoms_mm(
+    inner_height_mm: f64,
+    bottom_reserve_mm: f64,
+    top_reserve_mm: f64,
+    shelf_count: u32,
+    shelf_thickness_mm: f64,
+    min_gap_mm: f64,
+    seed: u64,
+) -> Result<Vec<f64>, String> {
+    if shelf_count < 1 {
+        return Err("shelf_count must be at least 1".to_owned());
+    }
+    if !shelf_thickness_mm.is_finite() || shelf_thickness_mm <= 0.0 {
+        return Err("shelf_thickness_mm must be finite and positive".to_owned());
+    }
+    if !inner_height_mm.is_finite() || inner_height_mm <= 0.0 {
+        return Err("inner height must be finite and positive".to_owned());
+    }
+    if !bottom_reserve_mm.is_finite() || bottom_reserve_mm < 0.0 {
+        return Err("bottom_reserve_mm must be finite and non-negative".to_owned());
+    }
+    if !top_reserve_mm.is_finite() || top_reserve_mm < 0.0 {
+        return Err("top_reserve_mm must be finite and non-negative".to_owned());
+    }
+    if !min_gap_mm.is_finite() || min_gap_mm < MIN_AIR_GAP_MM {
+        return Err(format!(
+            "min_gap_mm must be finite and at least {MIN_AIR_GAP_MM} mm"
+        ));
+    }
+    let n = shelf_count as f64;
+    let slack = inner_height_mm
+        - bottom_reserve_mm
+        - top_reserve_mm
+        - n * shelf_thickness_mm
+        - (n - 1.0).max(0.0) * min_gap_mm;
+    if slack < -1e-9 {
+        return Err(format!(
+            "cannot fit {shelf_count} shelf board(s): inner height {inner_height_mm} mm with bottom_reserve {bottom_reserve_mm}, top_reserve {top_reserve_mm}, thickness {shelf_thickness_mm}, min_gap {min_gap_mm} leaves negative slack ({slack} mm)"
+        ));
+    }
+    let slack = slack.max(0.0);
+    let slots = shelf_count as usize + 1;
+    let mut rng = SplitMix64::new(seed);
+    let mut w = Vec::with_capacity(slots);
+    let mut sum_w = 0.0;
+    for _ in 0..slots {
+        let wi = rng.next_u01_open01();
+        w.push(wi);
+        sum_w += wi;
+    }
+    if sum_w <= 0.0 {
+        return Err("internal: slack weights sum to zero".to_owned());
+    }
+    let u: Vec<f64> = w.iter().map(|wi| slack * wi / sum_w).collect();
+    let mut bottoms: Vec<f64> = Vec::with_capacity(shelf_count as usize);
+    let mut cur = bottom_reserve_mm + u[0];
+    bottoms.push(cur);
+    for i in 1..shelf_count as usize {
+        cur += shelf_thickness_mm + min_gap_mm + u[i];
+        bottoms.push(cur);
+    }
+    let top_clear = inner_height_mm - bottoms[shelf_count as usize - 1] - shelf_thickness_mm;
+    let expected_top = top_reserve_mm + u[slots - 1];
+    if (top_clear - expected_top).abs() > 1e-4 {
+        return Err(format!(
+            "internal: top clearance mismatch (got {top_clear}, expected {expected_top})"
+        ));
+    }
+    if top_clear + 1e-9 < top_reserve_mm {
+        return Err("top clearance below top_reserve_mm after placement".to_owned());
+    }
+    Ok(bottoms)
+}
+
+fn band_index_for_slot(inner_height_mm: f64, slot: usize, slot_count: usize) -> usize {
+    if slot_count == 0 {
+        return 1;
+    }
+    let y = ((slot as f64) + 0.5) / (slot_count as f64) * inner_height_mm;
+    if y < inner_height_mm / 3.0 {
+        0
+    } else if y < 2.0 * inner_height_mm / 3.0 {
+        1
+    } else {
+        2
+    }
+}
+
+/// Like [`seeded_random_min_gap_shelf_bottoms_mm`], but each slack slot draws a **Gamma**(`alpha`,1) variate
+/// with integer `alpha = max(1, round(100 * band_weight))` for the vertical third containing the slot midpoint,
+/// producing a Dirichlet-style biased composition.
+pub fn weighted_random_band_shelf_bottoms_mm(
+    inner_height_mm: f64,
+    bottom_reserve_mm: f64,
+    top_reserve_mm: f64,
+    shelf_count: u32,
+    shelf_thickness_mm: f64,
+    min_gap_mm: f64,
+    seed: u64,
+    band_weight_lower: f64,
+    band_weight_middle: f64,
+    band_weight_upper: f64,
+) -> Result<Vec<f64>, String> {
+    if shelf_count < 1 {
+        return Err("shelf_count must be at least 1".to_owned());
+    }
+    if !band_weight_lower.is_finite() || band_weight_lower <= 0.0 {
+        return Err("band_weight_lower must be finite and positive".to_owned());
+    }
+    if !band_weight_middle.is_finite() || band_weight_middle <= 0.0 {
+        return Err("band_weight_middle must be finite and positive".to_owned());
+    }
+    if !band_weight_upper.is_finite() || band_weight_upper <= 0.0 {
+        return Err("band_weight_upper must be finite and positive".to_owned());
+    }
+    if !shelf_thickness_mm.is_finite() || shelf_thickness_mm <= 0.0 {
+        return Err("shelf_thickness_mm must be finite and positive".to_owned());
+    }
+    if !inner_height_mm.is_finite() || inner_height_mm <= 0.0 {
+        return Err("inner height must be finite and positive".to_owned());
+    }
+    if !bottom_reserve_mm.is_finite() || bottom_reserve_mm < 0.0 {
+        return Err("bottom_reserve_mm must be finite and non-negative".to_owned());
+    }
+    if !top_reserve_mm.is_finite() || top_reserve_mm < 0.0 {
+        return Err("top_reserve_mm must be finite and non-negative".to_owned());
+    }
+    if !min_gap_mm.is_finite() || min_gap_mm < MIN_AIR_GAP_MM {
+        return Err(format!(
+            "min_gap_mm must be finite and at least {MIN_AIR_GAP_MM} mm"
+        ));
+    }
+    let n = shelf_count as f64;
+    let slack = inner_height_mm
+        - bottom_reserve_mm
+        - top_reserve_mm
+        - n * shelf_thickness_mm
+        - (n - 1.0).max(0.0) * min_gap_mm;
+    if slack < -1e-9 {
+        return Err(format!(
+            "cannot fit {shelf_count} shelf board(s) with the given reserves, thickness, and min_gap (negative slack {slack} mm)"
+        ));
+    }
+    let slack = slack.max(0.0);
+    let slots = shelf_count as usize + 1;
+    let mut rng = SplitMix64::new(seed);
+    let weights = [band_weight_lower, band_weight_middle, band_weight_upper];
+    let mut xs: Vec<f64> = Vec::with_capacity(slots);
+    let mut sum_x = 0.0;
+    for s in 0..slots {
+        let b = band_index_for_slot(inner_height_mm, s, slots);
+        let alpha = ((weights[b] * 100.0).round() as i64).clamp(1, 10_000) as u32;
+        let x = sample_erlang_sum_exp(&mut rng, alpha);
+        xs.push(x);
+        sum_x += x;
+    }
+    if sum_x <= 0.0 {
+        return Err("internal: gamma draws sum to zero".to_owned());
+    }
+    let u: Vec<f64> = xs.iter().map(|xi| slack * xi / sum_x).collect();
+    let mut bottoms: Vec<f64> = Vec::with_capacity(shelf_count as usize);
+    let mut cur = bottom_reserve_mm + u[0];
+    bottoms.push(cur);
+    for i in 1..shelf_count as usize {
+        cur += shelf_thickness_mm + min_gap_mm + u[i];
+        bottoms.push(cur);
+    }
+    let top_clear = inner_height_mm - bottoms[shelf_count as usize - 1] - shelf_thickness_mm;
+    let expected_top = top_reserve_mm + u[slots - 1];
+    if (top_clear - expected_top).abs() > 1e-4 {
+        return Err("internal: top clearance mismatch".to_owned());
+    }
+    if top_clear + 1e-9 < top_reserve_mm {
+        return Err("top clearance below top_reserve_mm after placement".to_owned());
+    }
+    Ok(bottoms)
+}
+
+/// Returns `Ok` when `bay_count` uprights of thickness `upright_thickness_mm` fit in `usable_width_mm`
+/// with strictly positive bay clear width.
+pub fn validate_equal_bays_in_width_mm(
+    usable_width_mm: f64,
+    bay_count: u32,
+    upright_thickness_mm: f64,
+) -> Result<(), String> {
+    if bay_count < 1 {
+        return Err("bay_count must be at least 1".to_owned());
+    }
+    if !usable_width_mm.is_finite() || usable_width_mm <= 0.0 {
+        return Err("usable inner width must be finite and positive".to_owned());
+    }
+    if !upright_thickness_mm.is_finite() || upright_thickness_mm <= 0.0 {
+        return Err("upright_thickness_mm must be finite and positive".to_owned());
+    }
+    if bay_count == 1 {
+        return Ok(());
+    }
+    let m = bay_count as f64;
+    let bay_clear = (usable_width_mm - (m - 1.0) * upright_thickness_mm) / m;
+    if bay_clear <= 1e-6 {
+        return Err(format!(
+            "bay_count {bay_count} with upright_thickness_mm {upright_thickness_mm} does not fit usable width {usable_width_mm} mm (non-positive bay width)"
+        ));
+    }
+    Ok(())
+}
 
 fn golden_ratio_phi() -> f64 {
     (1.0 + 5.0_f64.sqrt()) / 2.0
@@ -171,9 +426,7 @@ pub fn two_tier_rhythm_shelf_bottoms_mm(
             "top_reserve_mm ({top_reserve_mm}) must be strictly less than inner height ({inner_height_mm} mm)"
         ));
     }
-    if !transition_y_mm.is_finite()
-        || transition_y_mm <= 0.0
-        || transition_y_mm >= inner_height_mm
+    if !transition_y_mm.is_finite() || transition_y_mm <= 0.0 || transition_y_mm >= inner_height_mm
     {
         return Err(format!(
             "transition_y_mm must be finite and strictly between 0 and inner height ({inner_height_mm} mm)"
@@ -301,7 +554,8 @@ pub fn max_shelves_min_segment_shelf_bottoms_mm(
         return Err("shelf_thickness_mm must be finite and positive".to_owned());
     }
     let band_mm = inner_height_mm - bottom_reserve_mm - top_reserve_mm;
-    let n_max = max_shelf_count_for_min_segment_mm(band_mm, shelf_thickness_mm, min_vertical_segment_mm);
+    let n_max =
+        max_shelf_count_for_min_segment_mm(band_mm, shelf_thickness_mm, min_vertical_segment_mm);
     if n_max < 1 {
         return Err(format!(
             "cannot fit any shelf: band height {band_mm} mm with thickness {shelf_thickness_mm} mm requires each of (n+1) air gaps ≥ {min_vertical_segment_mm} mm for some n ≥ 1"
@@ -322,10 +576,7 @@ pub fn max_shelves_min_segment_shelf_bottoms_mm(
         }
     };
     let in_band = equal_spacing_shelf_bottoms_mm(band_mm, n, shelf_thickness_mm)?;
-    Ok(in_band
-        .into_iter()
-        .map(|y| y + bottom_reserve_mm)
-        .collect())
+    Ok(in_band.into_iter().map(|y| y + bottom_reserve_mm).collect())
 }
 
 /// Validates user-supplied shelf bottom **Y** coordinates (mm from inner floor, ascending).
@@ -584,7 +835,10 @@ mod tests {
         let g_lo = 80.0;
         let g_hi = 200.0;
         let bottoms = two_tier_rhythm_shelf_bottoms_mm(h, 0.0, transition, g_lo, g_hi, t).unwrap();
-        assert!((bottoms[0] - g_lo).abs() < 1e-6, "first air gap should match gap_lower");
+        assert!(
+            (bottoms[0] - g_lo).abs() < 1e-6,
+            "first air gap should match gap_lower"
+        );
         assert!(bottoms[0] > 0.0);
         let last = *bottoms.last().unwrap();
         assert!(last + t < h - 1e-6);
@@ -614,7 +868,8 @@ mod tests {
         let m = 100.0;
         let n_max = max_shelf_count_for_min_segment_mm(band, t, m);
         assert_eq!(n_max, 17);
-        let bottoms = max_shelves_min_segment_shelf_bottoms_mm(2200.0, 0.0, 0.0, m, t, None).unwrap();
+        let bottoms =
+            max_shelves_min_segment_shelf_bottoms_mm(2200.0, 0.0, 0.0, m, t, None).unwrap();
         assert_eq!(bottoms.len() as u32, n_max);
         let g = (band - f64::from(n_max) * t) / (f64::from(n_max) + 1.0);
         assert!(g + 1e-6 >= m);
@@ -630,7 +885,10 @@ mod tests {
         assert_eq!(fewer.len(), 3);
         assert!(fewer.len() < max_only.len());
         let g3 = (h - 3.0 * t) / 4.0;
-        assert!(g3 > (h - f64::from(max_only.len() as u32) * t) / (f64::from(max_only.len() as u32) + 1.0));
+        assert!(
+            g3 > (h - f64::from(max_only.len() as u32) * t)
+                / (f64::from(max_only.len() as u32) + 1.0)
+        );
         assert!(g3 + 1e-6 >= m);
     }
 
@@ -639,5 +897,53 @@ mod tests {
         let err = max_shelves_min_segment_shelf_bottoms_mm(2200.0, 0.0, 0.0, 100.0, 18.0, Some(99))
             .unwrap_err();
         assert!(err.contains("exceeds maximum"));
+    }
+
+    #[test]
+    fn splitmix64_stream_is_reproducible_for_same_seed() {
+        let mut a = SplitMix64::new(0xC0FFEE_u64);
+        let mut b = SplitMix64::new(0xC0FFEE_u64);
+        for _ in 0..20 {
+            assert_eq!(a.next_u64(), b.next_u64());
+        }
+    }
+
+    #[test]
+    fn seeded_random_min_gap_is_deterministic() {
+        let a = seeded_random_min_gap_shelf_bottoms_mm(
+            2200.0,
+            120.0,
+            80.0,
+            4,
+            18.0,
+            64.0,
+            0xDEAD_BEEF_CAFE_u64,
+        )
+        .unwrap();
+        let b = seeded_random_min_gap_shelf_bottoms_mm(
+            2200.0,
+            120.0,
+            80.0,
+            4,
+            18.0,
+            64.0,
+            0xDEAD_BEEF_CAFE_u64,
+        )
+        .unwrap();
+        assert_eq!(a, b);
+        assert_eq!(a.len(), 4);
+        assert!(a[0] >= 120.0);
+        assert!(a[3] + 18.0 <= 2200.0 - 80.0 + 1e-6);
+    }
+
+    #[test]
+    fn weighted_random_differs_from_uniform_with_biased_weights() {
+        let u = seeded_random_min_gap_shelf_bottoms_mm(2200.0, 50.0, 50.0, 3, 18.0, 40.0, 12345)
+            .unwrap();
+        let w = weighted_random_band_shelf_bottoms_mm(
+            2200.0, 50.0, 50.0, 3, 18.0, 40.0, 12345, 10.0, 1.0, 1.0,
+        )
+        .unwrap();
+        assert_ne!(u, w);
     }
 }

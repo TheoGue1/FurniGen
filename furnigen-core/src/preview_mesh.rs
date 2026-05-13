@@ -2,13 +2,11 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::interior_shelves::{
-    equal_spacing_shelf_bottoms_mm, golden_ratio_ladder_shelf_bottoms_mm,
-    max_shelves_min_segment_shelf_bottoms_mm, two_tier_rhythm_shelf_bottoms_mm,
-    validate_explicit_shelf_bottoms_mm, zones_equal_fill_shelf_bottoms_mm,
-    DEFAULT_SHELF_THICKNESS_MM,
+use crate::inner_volume_for_spec_parts;
+use crate::shelf_layout::layout_interior_mm;
+use crate::shelf_mesh::{
+    append_shelf_bottom_face_rect_mm, append_shelf_top_face_rect_mm, append_upright_x_slab_mm,
 };
-use crate::shelf_mesh::{append_shelf_bottom_face_mm, append_shelf_top_face_mm};
 use crate::{InteriorSpec, LayoutSpec, WardrobeSpec};
 
 /// Interleaved `x,y,z` positions and triangle `indices` (u32 element buffer).
@@ -21,134 +19,96 @@ pub struct PreviewMesh {
 /// Builds an indexed mesh for the current spec layout. v1: straight run only (five panels, no door).
 pub fn build_preview_mesh(spec: &WardrobeSpec) -> PreviewMesh {
     match &spec.layout {
-        LayoutSpec::StraightRun {
-            width_mm: w,
-            height_mm: h,
-            depth_mm: d,
-        } => {
-            let mut mesh = build_open_front_box_mm(*w as f32, *h as f32, *d as f32);
-            append_interior_shelf_quads(&mut mesh, spec, *w, *h, *d);
+        LayoutSpec::StraightRun { .. } => {
+            let inner = inner_volume_for_spec_parts(&spec.layout, spec.clearance.as_ref());
+            let mut mesh = build_open_front_box_mm(
+                inner.width_mm as f32,
+                inner.height_mm as f32,
+                inner.depth_mm as f32,
+            );
+            if let Some((boards, uprights)) = layout_interior_mm(spec) {
+                let shelf_t = shelf_thickness_for_preview(spec);
+                let t_f = shelf_t as f32;
+                for b in boards {
+                    let y0 = b.y_bottom_mm as f32;
+                    let y1 = y0 + t_f;
+                    append_shelf_bottom_face_rect_mm(
+                        &mut mesh.positions,
+                        &mut mesh.indices,
+                        y0,
+                        b.x0_mm as f32,
+                        b.x1_mm as f32,
+                        b.z0_mm as f32,
+                        b.z1_mm as f32,
+                    );
+                    append_shelf_top_face_rect_mm(
+                        &mut mesh.positions,
+                        &mut mesh.indices,
+                        y1,
+                        b.x0_mm as f32,
+                        b.x1_mm as f32,
+                        b.z0_mm as f32,
+                        b.z1_mm as f32,
+                    );
+                }
+                let y0 = 0.0_f32;
+                let y1 = inner.height_mm as f32;
+                for u in uprights {
+                    append_upright_x_slab_mm(
+                        &mut mesh.positions,
+                        &mut mesh.indices,
+                        u.x0_mm as f32,
+                        u.x1_mm as f32,
+                        y0,
+                        y1,
+                        u.z0_mm as f32,
+                        u.z1_mm as f32,
+                    );
+                }
+            }
             mesh
         }
     }
 }
 
-fn append_interior_shelf_quads(
-    mesh: &mut PreviewMesh,
-    spec: &WardrobeSpec,
-    width_mm: f64,
-    inner_height_mm: f64,
-    depth_mm: f64,
-) {
+fn shelf_thickness_for_preview(spec: &WardrobeSpec) -> f64 {
     let Some(interior) = &spec.interior else {
-        return;
+        return crate::interior_shelves::DEFAULT_SHELF_THICKNESS_MM;
     };
-    let (bottoms, t) = match interior {
+    let t = match interior {
         InteriorSpec::EqualSpacingShelves {
-            shelf_count,
-            shelf_thickness_mm,
-        } => {
-            let t = shelf_thickness_mm.unwrap_or(DEFAULT_SHELF_THICKNESS_MM);
-            match equal_spacing_shelf_bottoms_mm(inner_height_mm, *shelf_count, t) {
-                Ok(b) => (b, t),
-                Err(_) => return,
-            }
-        }
+            shelf_thickness_mm, ..
+        } => *shelf_thickness_mm,
         InteriorSpec::ExplicitShelfHeights {
-            shelf_bottom_y_mm,
-            shelf_thickness_mm,
-            min_gap_mm,
-        } => {
-            let t = shelf_thickness_mm.unwrap_or(DEFAULT_SHELF_THICKNESS_MM);
-            match validate_explicit_shelf_bottoms_mm(
-                inner_height_mm,
-                shelf_bottom_y_mm,
-                t,
-                *min_gap_mm,
-            ) {
-                Ok(b) => (b, t),
-                Err(_) => return,
-            }
-        }
+            shelf_thickness_mm, ..
+        } => *shelf_thickness_mm,
         InteriorSpec::ZonesEqualFillShelves {
-            bottom_zone_mm,
-            top_reserve_mm,
-            shelf_count,
-            shelf_thickness_mm,
-        } => {
-            let t = shelf_thickness_mm.unwrap_or(DEFAULT_SHELF_THICKNESS_MM);
-            match zones_equal_fill_shelf_bottoms_mm(
-                inner_height_mm,
-                *bottom_zone_mm,
-                *top_reserve_mm,
-                *shelf_count,
-                t,
-            ) {
-                Ok(b) => (b, t),
-                Err(_) => return,
-            }
-        }
+            shelf_thickness_mm, ..
+        } => *shelf_thickness_mm,
         InteriorSpec::GoldenRatioLadderShelves {
-            rungs,
-            shelf_thickness_mm,
-        } => {
-            let t = shelf_thickness_mm.unwrap_or(DEFAULT_SHELF_THICKNESS_MM);
-            match golden_ratio_ladder_shelf_bottoms_mm(inner_height_mm, *rungs, t) {
-                Ok(b) => (b, t),
-                Err(_) => return,
-            }
-        }
+            shelf_thickness_mm, ..
+        } => *shelf_thickness_mm,
         InteriorSpec::TwoTierRhythmShelves {
-            transition_y_mm,
-            gap_lower_mm,
-            gap_upper_mm,
-            top_reserve_mm,
-            shelf_thickness_mm,
-        } => {
-            let t = shelf_thickness_mm.unwrap_or(DEFAULT_SHELF_THICKNESS_MM);
-            match two_tier_rhythm_shelf_bottoms_mm(
-                inner_height_mm,
-                *top_reserve_mm,
-                *transition_y_mm,
-                *gap_lower_mm,
-                *gap_upper_mm,
-                t,
-            ) {
-                Ok(b) => (b, t),
-                Err(_) => return,
-            }
-        }
+            shelf_thickness_mm, ..
+        } => *shelf_thickness_mm,
         InteriorSpec::MaxShelvesMinSegmentShelves {
-            min_vertical_segment_mm,
-            bottom_reserve_mm,
-            top_reserve_mm,
-            shelf_count,
-            shelf_thickness_mm,
-        } => {
-            let t = shelf_thickness_mm.unwrap_or(DEFAULT_SHELF_THICKNESS_MM);
-            match max_shelves_min_segment_shelf_bottoms_mm(
-                inner_height_mm,
-                *bottom_reserve_mm,
-                *top_reserve_mm,
-                *min_vertical_segment_mm,
-                t,
-                *shelf_count,
-            ) {
-                Ok(b) => (b, t),
-                Err(_) => return,
-            }
-        }
-        InteriorSpec::Stub => return,
+            shelf_thickness_mm, ..
+        } => *shelf_thickness_mm,
+        InteriorSpec::SeededRandomMinGapShelves {
+            shelf_thickness_mm, ..
+        } => *shelf_thickness_mm,
+        InteriorSpec::WeightedRandomBandShelves {
+            shelf_thickness_mm, ..
+        } => *shelf_thickness_mm,
+        InteriorSpec::EqualVerticalBaysEqualSpacingShelves {
+            shelf_thickness_mm, ..
+        } => *shelf_thickness_mm,
+        InteriorSpec::GridUprightsExplicitRowsShelves {
+            shelf_thickness_mm, ..
+        } => *shelf_thickness_mm,
+        InteriorSpec::Stub => None,
     };
-    let w = width_mm as f32;
-    let d = depth_mm as f32;
-    let t_f = t as f32;
-    for yb in bottoms {
-        let y0 = yb as f32;
-        let y1 = y0 + t_f;
-        append_shelf_bottom_face_mm(&mut mesh.positions, &mut mesh.indices, y0, w, d);
-        append_shelf_top_face_mm(&mut mesh.positions, &mut mesh.indices, y1, w, d);
-    }
+    t.unwrap_or(crate::interior_shelves::DEFAULT_SHELF_THICKNESS_MM)
 }
 
 fn push_vertex(buf: &mut Vec<f32>, x: f32, y: f32, z: f32) {
@@ -218,7 +178,7 @@ mod tests {
     }
 
     #[test]
-    fn straight_run_mesh_bbox_matches_spec() {
+    fn straight_run_mesh_bbox_matches_inner_spec() {
         const FIXTURE: &str = include_str!("../../spec-fixtures/wardrobe-spec-v1-minimal.json");
         let spec = parse_wardrobe_spec_json(FIXTURE.trim()).unwrap();
         let mesh = build_preview_mesh(&spec);

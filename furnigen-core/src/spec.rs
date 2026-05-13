@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Map;
 use thiserror::Error;
 
+use crate::inner_volume::ClearanceSpec;
+
 /// Supported top-level contract revision (bump when breaking JSON shape).
 pub const WARDROBE_SPEC_VERSION: u32 = 1;
 
@@ -46,7 +48,10 @@ pub enum InteriorSpec {
         transition_y_mm: f64,
         gap_lower_mm: f64,
         gap_upper_mm: f64,
-        #[serde(default = "default_f64_zero", skip_serializing_if = "is_default_f64_zero")]
+        #[serde(
+            default = "default_f64_zero",
+            skip_serializing_if = "is_default_f64_zero"
+        )]
         top_reserve_mm: f64,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         shelf_thickness_mm: Option<f64>,
@@ -55,14 +60,91 @@ pub enum InteriorSpec {
     /// `min_vertical_segment_mm` on every segment, or an explicit `shelf_count` ≤ that maximum.
     MaxShelvesMinSegmentShelves {
         min_vertical_segment_mm: f64,
-        #[serde(default = "default_f64_zero", skip_serializing_if = "is_default_f64_zero")]
+        #[serde(
+            default = "default_f64_zero",
+            skip_serializing_if = "is_default_f64_zero"
+        )]
         bottom_reserve_mm: f64,
-        #[serde(default = "default_f64_zero", skip_serializing_if = "is_default_f64_zero")]
+        #[serde(
+            default = "default_f64_zero",
+            skip_serializing_if = "is_default_f64_zero"
+        )]
         top_reserve_mm: f64,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         shelf_count: Option<u32>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         shelf_thickness_mm: Option<f64>,
+    },
+    /// Deterministic random shelf bottoms with `min_gap_mm` between boards and floor/ceiling reserves.
+    SeededRandomMinGapShelves {
+        seed: u64,
+        shelf_count: u32,
+        min_gap_mm: f64,
+        #[serde(
+            default = "default_f64_zero",
+            skip_serializing_if = "is_default_f64_zero"
+        )]
+        bottom_reserve_mm: f64,
+        #[serde(
+            default = "default_f64_zero",
+            skip_serializing_if = "is_default_f64_zero"
+        )]
+        top_reserve_mm: f64,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        shelf_thickness_mm: Option<f64>,
+    },
+    /// Like [`InteriorSpec::SeededRandomMinGapShelves`], but slack slots use Gamma weights biased by vertical third.
+    WeightedRandomBandShelves {
+        seed: u64,
+        shelf_count: u32,
+        min_gap_mm: f64,
+        #[serde(
+            default = "default_f64_zero",
+            skip_serializing_if = "is_default_f64_zero"
+        )]
+        bottom_reserve_mm: f64,
+        #[serde(
+            default = "default_f64_zero",
+            skip_serializing_if = "is_default_f64_zero"
+        )]
+        top_reserve_mm: f64,
+        #[serde(
+            default = "default_one_f64",
+            skip_serializing_if = "is_default_one_f64"
+        )]
+        band_weight_lower: f64,
+        #[serde(
+            default = "default_one_f64",
+            skip_serializing_if = "is_default_one_f64"
+        )]
+        band_weight_middle: f64,
+        #[serde(
+            default = "default_one_f64",
+            skip_serializing_if = "is_default_one_f64"
+        )]
+        band_weight_upper: f64,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        shelf_thickness_mm: Option<f64>,
+    },
+    /// Equal clear-width bays separated by upright dividers; **same** equal-vertical spacing stack in each bay.
+    EqualVerticalBaysEqualSpacingShelves {
+        bay_count: u32,
+        shelf_count: u32,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        upright_thickness_mm: Option<f64>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        shelf_thickness_mm: Option<f64>,
+    },
+    /// Upright bays with **globally aligned** shelf rows from explicit bottom Y values (same heights in every bay).
+    GridUprightsExplicitRowsShelves {
+        bay_count: u32,
+        shelf_bottom_y_mm: Vec<f64>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        upright_thickness_mm: Option<f64>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        shelf_thickness_mm: Option<f64>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        min_gap_mm: Option<f64>,
     },
 }
 
@@ -73,6 +155,8 @@ pub struct WardrobeSpec {
     pub layout: LayoutSpec,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub interior: Option<InteriorSpec>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub clearance: Option<ClearanceSpec>,
     #[serde(default, skip_serializing_if = "Map::is_empty")]
     pub extensions: Map<String, serde_json::Value>,
 }
@@ -108,8 +192,37 @@ fn default_f64_zero() -> f64 {
     0.0
 }
 
+/// Inner straight-run volume (mm) from outer layout dimensions and optional clearance.
+pub fn inner_volume_for_spec_parts(
+    layout: &LayoutSpec,
+    clearance: Option<&ClearanceSpec>,
+) -> crate::inner_volume::StraightRunInnerVolume {
+    match layout {
+        LayoutSpec::StraightRun {
+            width_mm,
+            height_mm,
+            depth_mm,
+        } => crate::inner_volume::straight_run_inner_volume_mm(
+            *width_mm, *height_mm, *depth_mm, clearance,
+        ),
+    }
+}
+
+/// Inner volume with no clearance shrink (legacy helper for tests and simple callers).
+pub fn inner_volume_mm(layout: &LayoutSpec) -> crate::inner_volume::StraightRunInnerVolume {
+    inner_volume_for_spec_parts(layout, None)
+}
+
 fn is_default_f64_zero(v: &f64) -> bool {
     *v == 0.0
+}
+
+fn default_one_f64() -> f64 {
+    1.0
+}
+
+fn is_default_one_f64(v: &f64) -> bool {
+    (*v - 1.0).abs() < f64::EPSILON
 }
 
 fn validate_positive_finite(label: &str, v: f64) -> Result<(), SpecError> {
@@ -140,16 +253,61 @@ pub fn validate_wardrobe_spec(spec: &WardrobeSpec) -> Result<(), SpecError> {
             validate_positive_finite("width_mm", *width_mm)?;
             validate_positive_finite("height_mm", *height_mm)?;
             validate_positive_finite("depth_mm", *depth_mm)?;
-            validate_interior_for_height(spec.interior.as_ref(), *height_mm)?;
+            validate_clearance(spec.clearance.as_ref())?;
+            let inner = inner_volume_for_spec_parts(&spec.layout, spec.clearance.as_ref());
+            validate_inner_volume_positive(&inner)?;
+            validate_interior_for_inner(spec.interior.as_ref(), spec, &inner)?;
         }
     }
     Ok(())
 }
 
-fn validate_interior_for_height(
-    interior: Option<&InteriorSpec>,
-    inner_height_mm: f64,
+fn validate_clearance(c: Option<&ClearanceSpec>) -> Result<(), SpecError> {
+    let Some(c) = c else {
+        return Ok(());
+    };
+    for (label, v) in [
+        ("carcass_panel_thickness_mm", c.carcass_panel_thickness_mm),
+        ("side_inset_mm", c.side_inset_mm),
+        ("front_setback_mm", c.front_setback_mm),
+        ("shelf_nosing_mm", c.shelf_nosing_mm),
+    ] {
+        if let Some(x) = v {
+            if !x.is_finite() {
+                return Err(SpecError::Validation(format!(
+                    "{label} must be finite when provided"
+                )));
+            }
+            if x < 0.0 {
+                return Err(SpecError::Validation(format!(
+                    "{label} must be non-negative when provided"
+                )));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_inner_volume_positive(
+    inner: &crate::inner_volume::StraightRunInnerVolume,
 ) -> Result<(), SpecError> {
+    const EPS: f64 = 1e-6;
+    if inner.width_mm <= EPS || inner.height_mm <= EPS || inner.depth_mm <= EPS {
+        return Err(SpecError::Validation(format!(
+            "clearance / panel thickness leaves non-positive inner volume (inner {:.3}×{:.3}×{:.3} mm); reduce carcass_panel_thickness_mm or enlarge outer dimensions",
+            inner.width_mm, inner.height_mm, inner.depth_mm
+        )));
+    }
+    Ok(())
+}
+
+fn validate_interior_for_inner(
+    interior: Option<&InteriorSpec>,
+    spec: &WardrobeSpec,
+    inner: &crate::inner_volume::StraightRunInnerVolume,
+) -> Result<(), SpecError> {
+    let inner_height_mm = inner.height_mm;
+    let inner_width_mm = inner.width_mm;
     let Some(interior) = interior else {
         return Ok(());
     };
@@ -311,6 +469,139 @@ fn validate_interior_for_height(
             .map_err(SpecError::Validation)?;
             Ok(())
         }
+        InteriorSpec::SeededRandomMinGapShelves {
+            seed,
+            shelf_count,
+            min_gap_mm,
+            bottom_reserve_mm,
+            top_reserve_mm,
+            shelf_thickness_mm,
+        } => {
+            if *shelf_count < 1 {
+                return Err(SpecError::Validation(
+                    "shelf_count must be at least 1".to_owned(),
+                ));
+            }
+            let t =
+                shelf_thickness_mm.unwrap_or(crate::interior_shelves::DEFAULT_SHELF_THICKNESS_MM);
+            validate_positive_finite("shelf_thickness_mm", t)?;
+            crate::interior_shelves::seeded_random_min_gap_shelf_bottoms_mm(
+                inner_height_mm,
+                *bottom_reserve_mm,
+                *top_reserve_mm,
+                *shelf_count,
+                t,
+                *min_gap_mm,
+                *seed,
+            )
+            .map_err(SpecError::Validation)?;
+            Ok(())
+        }
+        InteriorSpec::WeightedRandomBandShelves {
+            seed,
+            shelf_count,
+            min_gap_mm,
+            bottom_reserve_mm,
+            top_reserve_mm,
+            band_weight_lower,
+            band_weight_middle,
+            band_weight_upper,
+            shelf_thickness_mm,
+        } => {
+            if *shelf_count < 1 {
+                return Err(SpecError::Validation(
+                    "shelf_count must be at least 1".to_owned(),
+                ));
+            }
+            let t =
+                shelf_thickness_mm.unwrap_or(crate::interior_shelves::DEFAULT_SHELF_THICKNESS_MM);
+            validate_positive_finite("shelf_thickness_mm", t)?;
+            crate::interior_shelves::weighted_random_band_shelf_bottoms_mm(
+                inner_height_mm,
+                *bottom_reserve_mm,
+                *top_reserve_mm,
+                *shelf_count,
+                t,
+                *min_gap_mm,
+                *seed,
+                *band_weight_lower,
+                *band_weight_middle,
+                *band_weight_upper,
+            )
+            .map_err(SpecError::Validation)?;
+            Ok(())
+        }
+        InteriorSpec::EqualVerticalBaysEqualSpacingShelves {
+            bay_count,
+            shelf_count,
+            upright_thickness_mm,
+            shelf_thickness_mm,
+        } => {
+            if *bay_count < 1 {
+                return Err(SpecError::Validation(
+                    "bay_count must be at least 1".to_owned(),
+                ));
+            }
+            if *shelf_count < 1 {
+                return Err(SpecError::Validation(
+                    "shelf_count must be at least 1".to_owned(),
+                ));
+            }
+            let t =
+                shelf_thickness_mm.unwrap_or(crate::interior_shelves::DEFAULT_SHELF_THICKNESS_MM);
+            validate_positive_finite("shelf_thickness_mm", t)?;
+            let tu = upright_thickness_mm.unwrap_or(18.0);
+            validate_positive_finite("upright_thickness_mm", tu)?;
+            let side = spec
+                .clearance
+                .as_ref()
+                .and_then(|c| c.side_inset_mm)
+                .unwrap_or(0.0);
+            let usable_w = inner_width_mm - 2.0 * side;
+            crate::interior_shelves::validate_equal_bays_in_width_mm(usable_w, *bay_count, tu)
+                .map_err(SpecError::Validation)?;
+            crate::interior_shelves::equal_spacing_shelf_bottoms_mm(
+                inner_height_mm,
+                *shelf_count,
+                t,
+            )
+            .map_err(SpecError::Validation)?;
+            Ok(())
+        }
+        InteriorSpec::GridUprightsExplicitRowsShelves {
+            bay_count,
+            shelf_bottom_y_mm,
+            upright_thickness_mm,
+            shelf_thickness_mm,
+            min_gap_mm,
+        } => {
+            if *bay_count < 1 {
+                return Err(SpecError::Validation(
+                    "bay_count must be at least 1".to_owned(),
+                ));
+            }
+            let t =
+                shelf_thickness_mm.unwrap_or(crate::interior_shelves::DEFAULT_SHELF_THICKNESS_MM);
+            validate_positive_finite("shelf_thickness_mm", t)?;
+            let tu = upright_thickness_mm.unwrap_or(18.0);
+            validate_positive_finite("upright_thickness_mm", tu)?;
+            let side = spec
+                .clearance
+                .as_ref()
+                .and_then(|c| c.side_inset_mm)
+                .unwrap_or(0.0);
+            let usable_w = inner_width_mm - 2.0 * side;
+            crate::interior_shelves::validate_equal_bays_in_width_mm(usable_w, *bay_count, tu)
+                .map_err(SpecError::Validation)?;
+            crate::interior_shelves::validate_explicit_shelf_bottoms_mm(
+                inner_height_mm,
+                shelf_bottom_y_mm,
+                t,
+                *min_gap_mm,
+            )
+            .map_err(SpecError::Validation)?;
+            Ok(())
+        }
     }
 }
 
@@ -342,6 +633,16 @@ mod tests {
         include_str!("../../spec-fixtures/wardrobe-spec-v1-two-tier-rhythm-shelves.json");
     const MAX_SHELVES_MIN_SEGMENT: &str =
         include_str!("../../spec-fixtures/wardrobe-spec-v1-max-shelves-min-segment-shelves.json");
+    const SEEDED_RANDOM_MIN_GAP: &str =
+        include_str!("../../spec-fixtures/wardrobe-spec-v1-seeded-random-min-gap-shelves.json");
+    const WEIGHTED_RANDOM_BAND: &str =
+        include_str!("../../spec-fixtures/wardrobe-spec-v1-weighted-random-band-shelves.json");
+    const EQUAL_VERTICAL_BAYS: &str =
+        include_str!("../../spec-fixtures/wardrobe-spec-v1-equal-vertical-bays-shelves.json");
+    const GRID_UPRIGHTS_EXPLICIT: &str =
+        include_str!("../../spec-fixtures/wardrobe-spec-v1-grid-uprights-explicit-rows.json");
+    const CLEARANCE_THICKNESS: &str =
+        include_str!("../../spec-fixtures/wardrobe-spec-v1-clearance-thickness.json");
 
     #[test]
     fn golden_minimal_parse_and_validate() {
@@ -582,5 +883,54 @@ mod tests {
         let back: WardrobeSpec = serde_json::from_str(&json).unwrap();
         validate_wardrobe_spec(&back).unwrap();
         assert_eq!(spec, back);
+    }
+
+    #[test]
+    fn golden_seeded_random_min_gap_fixture_parse_and_validate() {
+        let spec = parse_wardrobe_spec_json(SEEDED_RANDOM_MIN_GAP.trim()).unwrap();
+        assert!(matches!(
+            spec.interior,
+            Some(InteriorSpec::SeededRandomMinGapShelves { .. })
+        ));
+        validate_wardrobe_spec(&spec).unwrap();
+    }
+
+    #[test]
+    fn golden_weighted_random_band_fixture_parse_and_validate() {
+        let spec = parse_wardrobe_spec_json(WEIGHTED_RANDOM_BAND.trim()).unwrap();
+        assert!(matches!(
+            spec.interior,
+            Some(InteriorSpec::WeightedRandomBandShelves { .. })
+        ));
+        validate_wardrobe_spec(&spec).unwrap();
+    }
+
+    #[test]
+    fn golden_equal_vertical_bays_fixture_parse_and_validate() {
+        let spec = parse_wardrobe_spec_json(EQUAL_VERTICAL_BAYS.trim()).unwrap();
+        assert!(matches!(
+            spec.interior,
+            Some(InteriorSpec::EqualVerticalBaysEqualSpacingShelves { .. })
+        ));
+        validate_wardrobe_spec(&spec).unwrap();
+    }
+
+    #[test]
+    fn golden_grid_uprights_explicit_rows_fixture_parse_and_validate() {
+        let spec = parse_wardrobe_spec_json(GRID_UPRIGHTS_EXPLICIT.trim()).unwrap();
+        assert!(matches!(
+            spec.interior,
+            Some(InteriorSpec::GridUprightsExplicitRowsShelves { .. })
+        ));
+        validate_wardrobe_spec(&spec).unwrap();
+    }
+
+    #[test]
+    fn golden_clearance_thickness_fixture_parse_and_validate() {
+        let spec = parse_wardrobe_spec_json(CLEARANCE_THICKNESS.trim()).unwrap();
+        assert!(spec.clearance.is_some());
+        validate_wardrobe_spec(&spec).unwrap();
+        let inner = inner_volume_for_spec_parts(&spec.layout, spec.clearance.as_ref());
+        assert!((inner.width_mm - (2400.0 - 36.0)).abs() < 1e-6);
     }
 }

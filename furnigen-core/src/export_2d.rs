@@ -114,8 +114,8 @@ mod tests {
             include_str!("../../spec-fixtures/wardrobe-spec-v1-equal-spacing-shelves.json");
         let spec = parse_wardrobe_spec_json(FIXTURE.trim()).unwrap();
         let svg = build_panels_svg(&spec);
-        assert!(svg.contains("id=\"shelf_01\""));
-        assert!(svg.contains("id=\"shelf_04\""));
+        assert!(svg.contains("id=\"shelf_001\""));
+        assert!(svg.contains("id=\"shelf_004\""));
     }
 
     #[test]
@@ -124,8 +124,8 @@ mod tests {
             include_str!("../../spec-fixtures/wardrobe-spec-v1-explicit-shelf-heights.json");
         let spec = parse_wardrobe_spec_json(FIXTURE.trim()).unwrap();
         let svg = build_panels_svg(&spec);
-        assert!(svg.contains("id=\"shelf_01\""));
-        assert!(svg.contains("id=\"shelf_03\""));
+        assert!(svg.contains("id=\"shelf_001\""));
+        assert!(svg.contains("id=\"shelf_003\""));
     }
 
     #[test]
@@ -134,8 +134,8 @@ mod tests {
             include_str!("../../spec-fixtures/wardrobe-spec-v1-zones-equal-fill-shelves.json");
         let spec = parse_wardrobe_spec_json(FIXTURE.trim()).unwrap();
         let svg = build_panels_svg(&spec);
-        assert!(svg.contains("id=\"shelf_01\""));
-        assert!(svg.contains("id=\"shelf_03\""));
+        assert!(svg.contains("id=\"shelf_001\""));
+        assert!(svg.contains("id=\"shelf_003\""));
     }
 
     #[test]
@@ -144,8 +144,8 @@ mod tests {
             include_str!("../../spec-fixtures/wardrobe-spec-v1-golden-ratio-ladder-shelves.json");
         let spec = parse_wardrobe_spec_json(FIXTURE.trim()).unwrap();
         let svg = build_panels_svg(&spec);
-        assert!(svg.contains("id=\"shelf_01\""));
-        assert!(svg.contains("id=\"shelf_03\""));
+        assert!(svg.contains("id=\"shelf_001\""));
+        assert!(svg.contains("id=\"shelf_003\""));
     }
 
     #[test]

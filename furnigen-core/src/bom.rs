@@ -87,8 +87,8 @@ mod tests {
         let spec = parse_wardrobe_spec_json(json).unwrap();
         let bom = build_bom(&spec);
         assert_eq!(bom.parts.len(), 7);
-        assert!(bom.parts.iter().any(|p| p.id == "shelf_01"));
-        assert!(bom.parts.iter().any(|p| p.id == "shelf_02"));
+        assert!(bom.parts.iter().any(|p| p.id == "shelf_001"));
+        assert!(bom.parts.iter().any(|p| p.id == "shelf_002"));
     }
 
     #[test]
@@ -97,8 +97,8 @@ mod tests {
         let spec = parse_wardrobe_spec_json(json).unwrap();
         let bom = build_bom(&spec);
         assert_eq!(bom.parts.len(), 7);
-        assert!(bom.parts.iter().any(|p| p.id == "shelf_01"));
-        assert!(bom.parts.iter().any(|p| p.id == "shelf_02"));
+        assert!(bom.parts.iter().any(|p| p.id == "shelf_001"));
+        assert!(bom.parts.iter().any(|p| p.id == "shelf_002"));
     }
 
     #[test]
@@ -107,8 +107,8 @@ mod tests {
         let spec = parse_wardrobe_spec_json(json).unwrap();
         let bom = build_bom(&spec);
         assert_eq!(bom.parts.len(), 8);
-        assert!(bom.parts.iter().any(|p| p.id == "shelf_01"));
-        assert!(bom.parts.iter().any(|p| p.id == "shelf_03"));
+        assert!(bom.parts.iter().any(|p| p.id == "shelf_001"));
+        assert!(bom.parts.iter().any(|p| p.id == "shelf_003"));
     }
 
     #[test]
@@ -117,7 +117,7 @@ mod tests {
         let spec = parse_wardrobe_spec_json(json).unwrap();
         let bom = build_bom(&spec);
         assert_eq!(bom.parts.len(), 8);
-        assert!(bom.parts.iter().any(|p| p.id == "shelf_01"));
-        assert!(bom.parts.iter().any(|p| p.id == "shelf_03"));
+        assert!(bom.parts.iter().any(|p| p.id == "shelf_001"));
+        assert!(bom.parts.iter().any(|p| p.id == "shelf_003"));
     }
 }

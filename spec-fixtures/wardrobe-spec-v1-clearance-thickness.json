@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "layout": {
+    "type": "straight_run",
+    "width_mm": 2400,
+    "height_mm": 2200,
+    "depth_mm": 600
+  },
+  "clearance": {
+    "carcass_panel_thickness_mm": 18,
+    "side_inset_mm": 2,
+    "front_setback_mm": 0,
+    "shelf_nosing_mm": 0
+  },
+  "interior": {
+    "type": "equal_spacing_shelves",
+    "shelf_count": 2
+  }
+}

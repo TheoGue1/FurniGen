@@ -182,4 +182,51 @@ describe("WardrobeSpec Zod contract (golden fixtures)", () => {
     const again = wardrobeSpecSchema.parse(JSON.parse(encoded));
     expect(again).toEqual(spec);
   });
+
+  it("accepts golden seeded_random_min_gap fixture", () => {
+    const raw = fixture("wardrobe-spec-v1-seeded-random-min-gap-shelves.json");
+    const spec = parseWardrobeSpecJson(raw);
+    expect(spec.interior?.type).toBe("seeded_random_min_gap_shelves");
+  });
+
+  it("accepts golden weighted_random_band fixture", () => {
+    const raw = fixture("wardrobe-spec-v1-weighted-random-band-shelves.json");
+    const spec = parseWardrobeSpecJson(raw);
+    expect(spec.interior?.type).toBe("weighted_random_band_shelves");
+  });
+
+  it("accepts golden equal_vertical_bays fixture", () => {
+    const raw = fixture("wardrobe-spec-v1-equal-vertical-bays-shelves.json");
+    const spec = parseWardrobeSpecJson(raw);
+    expect(spec.interior?.type).toBe("equal_vertical_bays_equal_spacing_shelves");
+  });
+
+  it("accepts golden grid_uprights_explicit_rows fixture", () => {
+    const raw = fixture("wardrobe-spec-v1-grid-uprights-explicit-rows.json");
+    const spec = parseWardrobeSpecJson(raw);
+    expect(spec.interior?.type).toBe("grid_uprights_explicit_rows_shelves");
+  });
+
+  it("accepts golden clearance fixture", () => {
+    const raw = fixture("wardrobe-spec-v1-clearance-thickness.json");
+    const spec = parseWardrobeSpecJson(raw);
+    expect(spec.clearance?.carcass_panel_thickness_mm).toBe(18);
+  });
+
+  it("rejects weighted_random_band_shelves with non-positive band weight", () => {
+    const raw = JSON.stringify({
+      version: 1,
+      layout: { type: "straight_run", width_mm: 2400, height_mm: 2200, depth_mm: 600 },
+      interior: {
+        type: "weighted_random_band_shelves",
+        seed: 1,
+        shelf_count: 2,
+        min_gap_mm: 50,
+        band_weight_lower: 0,
+        band_weight_middle: 1,
+        band_weight_upper: 1,
+      },
+    });
+    expect(() => parseWardrobeSpecJson(raw)).toThrow();
+  });
 });

@@ -2,13 +2,9 @@
 
 use serde::Serialize;
 
-use crate::interior_shelves::{
-    equal_spacing_shelf_bottoms_mm, golden_ratio_ladder_shelf_bottoms_mm,
-    max_shelves_min_segment_shelf_bottoms_mm, two_tier_rhythm_shelf_bottoms_mm,
-    validate_explicit_shelf_bottoms_mm, zones_equal_fill_shelf_bottoms_mm,
-    DEFAULT_SHELF_THICKNESS_MM,
-};
-use crate::{InteriorSpec, LayoutSpec, WardrobeSpec};
+use crate::inner_volume_for_spec_parts;
+use crate::shelf_layout::layout_interior_mm;
+use crate::{LayoutSpec, WardrobeSpec};
 
 /// One rectangular stock panel: two in-plane dimensions before edge banding / thickness offsets.
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -30,95 +26,25 @@ pub fn panel_blanks_for_spec(spec: &WardrobeSpec) -> Vec<PanelBlank> {
             depth_mm: d,
         } => {
             let mut panels = straight_run_open_front_panels(*w, *h, *d);
-            if let Some(interior) = &spec.interior {
-                let bottoms = match interior {
-                    InteriorSpec::EqualSpacingShelves {
-                        shelf_count,
-                        shelf_thickness_mm,
-                    } => {
-                        let t = shelf_thickness_mm.unwrap_or(DEFAULT_SHELF_THICKNESS_MM);
-                        equal_spacing_shelf_bottoms_mm(*h, *shelf_count, t).ok()
-                    }
-                    InteriorSpec::ExplicitShelfHeights {
-                        shelf_bottom_y_mm,
-                        shelf_thickness_mm,
-                        min_gap_mm,
-                    } => {
-                        let t = shelf_thickness_mm.unwrap_or(DEFAULT_SHELF_THICKNESS_MM);
-                        validate_explicit_shelf_bottoms_mm(*h, shelf_bottom_y_mm, t, *min_gap_mm)
-                            .ok()
-                    }
-                    InteriorSpec::ZonesEqualFillShelves {
-                        bottom_zone_mm,
-                        top_reserve_mm,
-                        shelf_count,
-                        shelf_thickness_mm,
-                    } => {
-                        let t = shelf_thickness_mm.unwrap_or(DEFAULT_SHELF_THICKNESS_MM);
-                        zones_equal_fill_shelf_bottoms_mm(
-                            *h,
-                            *bottom_zone_mm,
-                            *top_reserve_mm,
-                            *shelf_count,
-                            t,
-                        )
-                        .ok()
-                    }
-                    InteriorSpec::GoldenRatioLadderShelves {
-                        rungs,
-                        shelf_thickness_mm,
-                    } => {
-                        let t = shelf_thickness_mm.unwrap_or(DEFAULT_SHELF_THICKNESS_MM);
-                        golden_ratio_ladder_shelf_bottoms_mm(*h, *rungs, t).ok()
-                    }
-                    InteriorSpec::TwoTierRhythmShelves {
-                        transition_y_mm,
-                        gap_lower_mm,
-                        gap_upper_mm,
-                        top_reserve_mm,
-                        shelf_thickness_mm,
-                    } => {
-                        let t = shelf_thickness_mm.unwrap_or(DEFAULT_SHELF_THICKNESS_MM);
-                        two_tier_rhythm_shelf_bottoms_mm(
-                            *h,
-                            *top_reserve_mm,
-                            *transition_y_mm,
-                            *gap_lower_mm,
-                            *gap_upper_mm,
-                            t,
-                        )
-                        .ok()
-                    }
-                    InteriorSpec::MaxShelvesMinSegmentShelves {
-                        min_vertical_segment_mm,
-                        bottom_reserve_mm,
-                        top_reserve_mm,
-                        shelf_count,
-                        shelf_thickness_mm,
-                    } => {
-                        let t = shelf_thickness_mm.unwrap_or(DEFAULT_SHELF_THICKNESS_MM);
-                        max_shelves_min_segment_shelf_bottoms_mm(
-                            *h,
-                            *bottom_reserve_mm,
-                            *top_reserve_mm,
-                            *min_vertical_segment_mm,
-                            t,
-                            *shelf_count,
-                        )
-                        .ok()
-                    }
-                    InteriorSpec::Stub => None,
-                };
-                if let Some(bottoms) = bottoms {
-                    for i in 0..bottoms.len() {
-                        let n = i + 1;
-                        panels.push(PanelBlank {
-                            id: format!("shelf_{n:02}"),
-                            label: format!("Shelf {n}"),
-                            width_mm: *w,
-                            height_mm: *d,
-                        });
-                    }
+            let inner = inner_volume_for_spec_parts(&spec.layout, spec.clearance.as_ref());
+            if let Some((boards, uprights)) = layout_interior_mm(spec) {
+                for (i, b) in boards.iter().enumerate() {
+                    let n = i + 1;
+                    panels.push(PanelBlank {
+                        id: format!("shelf_{n:03}"),
+                        label: format!("Shelf {n}"),
+                        width_mm: (b.x1_mm - b.x0_mm).max(0.0),
+                        height_mm: (b.z1_mm - b.z0_mm).max(0.0),
+                    });
+                }
+                for (i, u) in uprights.iter().enumerate() {
+                    let n = i + 1;
+                    panels.push(PanelBlank {
+                        id: format!("upright_{n:02}"),
+                        label: format!("Upright divider {n}"),
+                        width_mm: (u.z1_mm - u.z0_mm).max(0.0),
+                        height_mm: inner.height_mm,
+                    });
                 }
             }
             panels
